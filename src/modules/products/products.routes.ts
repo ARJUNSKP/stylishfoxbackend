@@ -1,7 +1,12 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { ProductsService } from "./products.service.js";
-import { createProductSchema, updateProductSchema } from "./products.validation.js";
+import {
+  createProductSchema,
+  updateProductSchema,
+  createProductVariantInputSchema,
+  updateProductVariantSchema,
+} from "./products.validation.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
 
@@ -252,3 +257,90 @@ productsRoutes.delete("/:id", authenticate, requireAdmin, async (c) => {
   }
   return sendSuccess(c, deleted, "Product deleted successfully and R2 assets cleaned up");
 });
+
+// POST /api/v1/products/:id/variants - Add a variant to product (Admin only)
+productsRoutes.post(
+  "/:id/variants",
+  authenticate,
+  requireAdmin,
+  zValidator("json", createProductVariantInputSchema),
+  async (c) => {
+    try {
+      const id = c.req.param("id");
+      const data = c.req.valid("json");
+      const variant = await ProductsService.createVariant(id, data);
+      if (!variant) {
+        return sendError(c, "Product not found", 404);
+      }
+      return sendSuccess(c, variant, "Variant added successfully", 201);
+    } catch (error: any) {
+      return sendError(c, error.message || "Failed to create variant", 400);
+    }
+  }
+);
+
+// PUT /api/v1/products/variants/:variantId - Update variant details & publish state (Admin only)
+productsRoutes.put(
+  "/variants/:variantId",
+  authenticate,
+  requireAdmin,
+  zValidator("json", updateProductVariantSchema),
+  async (c) => {
+    try {
+      const variantId = c.req.param("variantId");
+      if (!variantId) return sendError(c, "Variant ID is required", 400);
+      const data = c.req.valid("json");
+      const variant = await ProductsService.updateVariant(variantId, data);
+      if (!variant) {
+        return sendError(c, "Variant not found", 404);
+      }
+      return sendSuccess(c, variant, "Variant updated successfully");
+    } catch (error: any) {
+      return sendError(c, error.message || "Failed to update variant", 400);
+    }
+  }
+);
+
+// PATCH /api/v1/products/variants/:variantId/publish - Toggle/Set variant published status (Admin only)
+productsRoutes.patch("/variants/:variantId/publish", authenticate, requireAdmin, async (c) => {
+  try {
+    const variantId = c.req.param("variantId");
+    if (!variantId) return sendError(c, "Variant ID is required", 400);
+
+    let isPublished: boolean | undefined = undefined;
+    try {
+      const body = await c.req.json();
+      if (body && typeof body.isPublished === "boolean") {
+        isPublished = body.isPublished;
+      } else if (body && typeof body.published === "boolean") {
+        isPublished = body.published;
+      }
+    } catch {
+      // Empty body means toggle current value
+    }
+
+    const updated = await ProductsService.toggleVariantPublished(variantId, isPublished);
+    if (!updated) {
+      return sendError(c, "Variant not found", 404);
+    }
+    return sendSuccess(c, updated, `Variant publish status set to ${updated.isPublished}`);
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to toggle variant publish status", 400);
+  }
+});
+
+// DELETE /api/v1/products/variants/:variantId - Delete a variant (Admin only)
+productsRoutes.delete("/variants/:variantId", authenticate, requireAdmin, async (c) => {
+  try {
+    const variantId = c.req.param("variantId");
+    if (!variantId) return sendError(c, "Variant ID is required", 400);
+    const deleted = await ProductsService.deleteVariant(variantId);
+    if (!deleted) {
+      return sendError(c, "Variant not found", 404);
+    }
+    return sendSuccess(c, deleted, "Variant deleted successfully");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to delete variant", 400);
+  }
+});
+

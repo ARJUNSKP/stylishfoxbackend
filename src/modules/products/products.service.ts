@@ -1,7 +1,12 @@
 import { eq, desc, ilike, and } from "drizzle-orm";
 import { db } from "../../config/database.js";
 import { products, productVariants, colors, sizes } from "../../db/schema/index.js";
-import type { CreateProductInput, UpdateProductInput } from "./products.validation.js";
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  CreateProductVariantInput,
+  UpdateProductVariantInput,
+} from "./products.validation.js";
 import { slugify } from "./products.validation.js";
 import { UploadsService } from "../uploads/uploads.service.js";
 import { R2Service } from "../../services/r2.service.js";
@@ -48,6 +53,7 @@ export class ProductsService {
         price: productVariants.price,
         stock: productVariants.stock,
         images: productVariants.images,
+        isPublished: productVariants.isPublished,
         color: {
           id: colors.id,
           name: colors.name,
@@ -86,6 +92,7 @@ export class ProductsService {
         price: productVariants.price,
         stock: productVariants.stock,
         images: productVariants.images,
+        isPublished: productVariants.isPublished,
         color: {
           id: colors.id,
           name: colors.name,
@@ -188,6 +195,13 @@ export class ProductsService {
       for (const v of data.variants) {
         const variantImages = v.images && v.images.length > 0 ? v.images : uploadedUrls;
         const sku = v.sku || `SF-${slug.slice(0, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+        const isPublished =
+          v.isPublished !== undefined
+            ? v.isPublished
+            : v.published !== undefined
+            ? v.published
+            : true;
+
         await db.insert(productVariants).values({
           productId: product.id,
           sku,
@@ -196,6 +210,7 @@ export class ProductsService {
           colorId: v.colorId,
           sizeId: v.sizeId,
           images: variantImages,
+          isPublished,
         });
       }
     } else if (
@@ -203,9 +218,18 @@ export class ProductsService {
       data.stock != null ||
       data.colorId ||
       data.sizeId ||
-      data.sku
+      data.sku ||
+      data.isPublished !== undefined ||
+      data.published !== undefined
     ) {
       const sku = data.sku || `SF-${slug.slice(0, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+      const isPublished =
+        data.isPublished !== undefined
+          ? data.isPublished
+          : data.published !== undefined
+          ? data.published
+          : true;
+
       await db.insert(productVariants).values({
         productId: product.id,
         sku,
@@ -214,6 +238,7 @@ export class ProductsService {
         colorId: data.colorId,
         sizeId: data.sizeId,
         images: uploadedUrls,
+        isPublished,
       });
     }
 
@@ -380,6 +405,108 @@ export class ProductsService {
         console.warn(`Could not delete image ${imgUrl} from R2:`, err);
       }
     }
+
+    return deleted || null;
+  }
+
+  /**
+   * Adds a new variant to an existing product
+   */
+  static async createVariant(productId: string, data: CreateProductVariantInput) {
+    const product = await this.getById(productId);
+    if (!product) return null;
+
+    const isPublished =
+      data.isPublished !== undefined
+        ? data.isPublished
+        : data.published !== undefined
+        ? data.published
+        : true;
+
+    const sku =
+      data.sku ||
+      `SF-${product.slug.slice(0, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+
+    const [variant] = await db
+      .insert(productVariants)
+      .values({
+        productId,
+        sku,
+        price: data.price != null ? String(data.price) : "0.00",
+        stock: data.stock != null ? Number(data.stock) : 0,
+        colorId: data.colorId,
+        sizeId: data.sizeId,
+        images: data.images || product.images || [],
+        isPublished,
+      })
+      .returning();
+
+    return variant || null;
+  }
+
+  /**
+   * Updates a product variant (including isPublished boolean status)
+   */
+  static async updateVariant(variantId: string, data: UpdateProductVariantInput) {
+    const isPublished =
+      data.isPublished !== undefined
+        ? data.isPublished
+        : data.published !== undefined
+        ? data.published
+        : undefined;
+
+    const updateFields: any = {
+      updatedAt: new Date(),
+    };
+    if (data.sku !== undefined) updateFields.sku = data.sku;
+    if (data.price !== undefined) updateFields.price = String(data.price);
+    if (data.stock !== undefined) updateFields.stock = data.stock;
+    if (data.colorId !== undefined) updateFields.colorId = data.colorId;
+    if (data.sizeId !== undefined) updateFields.sizeId = data.sizeId;
+    if (data.images !== undefined) updateFields.images = data.images;
+    if (isPublished !== undefined) updateFields.isPublished = isPublished;
+
+    const [updated] = await db
+      .update(productVariants)
+      .set(updateFields)
+      .where(eq(productVariants.id, variantId))
+      .returning();
+
+    return updated || null;
+  }
+
+  /**
+   * Toggles or sets the published status (boolean) for a variant
+   */
+  static async toggleVariantPublished(variantId: string, isPublished?: boolean) {
+    const [current] = await db
+      .select({ isPublished: productVariants.isPublished })
+      .from(productVariants)
+      .where(eq(productVariants.id, variantId))
+      .limit(1);
+
+    if (!current) return null;
+
+    const nextPublished =
+      isPublished !== undefined ? isPublished : !current.isPublished;
+
+    const [updated] = await db
+      .update(productVariants)
+      .set({ isPublished: nextPublished, updatedAt: new Date() })
+      .where(eq(productVariants.id, variantId))
+      .returning();
+
+    return updated || null;
+  }
+
+  /**
+   * Deletes a variant
+   */
+  static async deleteVariant(variantId: string) {
+    const [deleted] = await db
+      .delete(productVariants)
+      .where(eq(productVariants.id, variantId))
+      .returning();
 
     return deleted || null;
   }

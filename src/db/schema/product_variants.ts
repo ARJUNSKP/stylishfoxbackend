@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar, numeric, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, numeric, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { products } from "./products";
 import { colors } from "./colors";
 import { sizes } from "./sizes";
@@ -16,6 +16,7 @@ export const productVariants = pgTable("product_variants", {
   price: numeric("price", { precision: 10, scale: 2 }),
   stock: integer("stock").default(0).notNull(),
   images: jsonb("images").$type<string[]>().default([]).notNull(),
+  isPublished: boolean("is_published").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

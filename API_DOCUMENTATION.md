@@ -25,6 +25,10 @@
    - [Remove Image from Product & R2 (Admin)](#36-remove-image-from-product--r2-admin)
    - [Update Product (Admin)](#37-update-product-admin)
    - [Delete Product & Purge R2 Assets (Admin)](#38-delete-product--purge-r2-assets-admin)
+   - [Add Product Variant (Admin)](#39-add-product-variant-admin)
+   - [Update Product Variant (Admin)](#310-update-product-variant-admin)
+   - [Toggle / Set Variant Publish Status (Admin)](#311-toggle--set-variant-publish-status-admin)
+   - [Delete Product Variant (Admin)](#312-delete-product-variant-admin)
 4. [Categories (`/api/v1/categories`)](#4-categories-apiv1categories)
    - [List Categories](#41-list-all-categories)
    - [Get Category by ID](#42-get-category-by-id)
@@ -549,6 +553,114 @@ Deletes product, cascades variants, and purges all associated product images fro
 {
   "success": true,
   "message": "Product deleted successfully and R2 assets cleaned up"
+}
+```
+
+---
+
+### 3.9 Add Product Variant (Admin)
+Creates and links a new variant with pricing, inventory, colors, sizes, and **`isPublished` boolean status** to an existing product.
+
+- **Method**: `POST`
+- **Endpoint**: `/api/v1/products/:id/variants`
+- **Auth Required**: Yes (`role: "admin"`)
+
+#### Request Payload
+```json
+{
+  "sku": "SF-HOODIE-BLK-M",
+  "price": "69.99",
+  "stock": 25,
+  "colorId": "13bd0238-c7c3-46d8-ba7b-6dffa663014e",
+  "sizeId": "cd92c76e-3096-4db9-8a29-eae961aff1a9",
+  "images": [
+    "https://assets.stylefox.com/products/1792261649610-hoodie-front.jpg"
+  ],
+  "isPublished": true
+}
+```
+*(Supports either `"isPublished": true/false` or `"published": true/false`)*
+
+#### Success Response (`201 Created`)
+```json
+{
+  "success": true,
+  "message": "Variant added successfully",
+  "data": {
+    "id": "e2f132e4-96d5-4ad9-bf95-5cb954a613be",
+    "productId": "3154fbad-fabf-4fd2-9a1a-bbbd530fffd4",
+    "sku": "SF-HOODIE-BLK-M",
+    "price": "69.99",
+    "stock": 25,
+    "images": ["https://assets.stylefox.com/products/1792261649610-hoodie-front.jpg"],
+    "isPublished": true,
+    "createdAt": "2026-10-18T00:45:00.000Z",
+    "updatedAt": "2026-10-18T00:45:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.10 Update Product Variant (Admin)
+Updates any variant field, including pricing, stock, images, and **`isPublished` boolean status**.
+
+- **Method**: `PUT`
+- **Endpoint**: `/api/v1/products/variants/:variantId`
+- **Auth Required**: Yes (`role: "admin"`)
+
+#### Request Payload
+```json
+{
+  "price": "59.99",
+  "stock": 40,
+  "isPublished": false
+}
+```
+
+---
+
+### 3.11 Toggle / Set Variant Publish Status (Admin)
+Convenient endpoint to toggle a variant's published status or explicitly set it.
+
+- **Method**: `PATCH`
+- **Endpoint**: `/api/v1/products/variants/:variantId/publish`
+- **Auth Required**: Yes (`role: "admin"`)
+
+#### Optional Request Payload
+```json
+{
+  "isPublished": false
+}
+```
+*(If request body is empty, it toggles the current boolean value between `true` and `false`)*
+
+#### Success Response (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Variant publish status set to false",
+  "data": {
+    "id": "e2f132e4-96d5-4ad9-bf95-5cb954a613be",
+    "sku": "SF-HOODIE-BLK-M",
+    "isPublished": false,
+    "updatedAt": "2026-10-18T00:46:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.12 Delete Product Variant (Admin)
+- **Method**: `DELETE`
+- **Endpoint**: `/api/v1/products/variants/:variantId`
+- **Auth Required**: Yes (`role: "admin"`)
+
+#### Success Response (`200 OK`)
+```json
+{
+  "success": true,
+  "message": "Variant deleted successfully"
 }
 ```
 

@@ -243,6 +243,46 @@
               "variable": [{ "key": "id", "value": "5889a877-fba0-4784-babc-c49f900ea8c4" }]
             }
           }
+        },
+        {
+          "name": "Add Product Variant (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SF-HOODIE-BLK-M\",\n  \"price\": \"69.99\",\n  \"stock\": 20,\n  \"isPublished\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/:id/variants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", ":id", "variants"],
+              "variable": [{ "key": "id", "value": "5889a877-fba0-4784-babc-c49f900ea8c4" }]
+            }
+          }
+        },
+        {
+          "name": "Toggle Variant Published (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isPublished\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/variants/:variantId/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", "variants", ":variantId", "publish"],
+              "variable": [{ "key": "variantId", "value": "391fc517-4107-46ab-87bb-04661f11ea87" }]
+            }
+          }
         }
       ]
     },
