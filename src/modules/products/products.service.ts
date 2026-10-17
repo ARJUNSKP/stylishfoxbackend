@@ -1,4 +1,4 @@
-import { eq, desc, ilike, and } from "drizzle-orm";
+import { eq, desc, ilike, and, inArray } from "drizzle-orm";
 import { db } from "../../config/database.js";
 import { products, productVariants, colors, sizes } from "../../db/schema/index.js";
 import type {
@@ -19,7 +19,7 @@ export interface ImageFileInput {
 
 export class ProductsService {
   static async getAll(options?: { categoryId?: string; search?: string; limit?: number }) {
-    const limit = options?.limit || 20;
+    const limit = options?.limit || 50;
 
     const conditions = [];
     if (options?.categoryId) {
@@ -29,20 +29,77 @@ export class ProductsService {
       conditions.push(ilike(products.name, `%${options.search}%`));
     }
 
-    return await db
+    const productList = await db
       .select()
       .from(products)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(products.createdAt))
       .limit(limit);
+
+    if (productList.length === 0) return [];
+
+    const productIds = productList.map((p) => p.id);
+    const variants = await db
+      .select({
+        id: productVariants.id,
+        productId: productVariants.productId,
+        sku: productVariants.sku,
+        price: productVariants.price,
+        stock: productVariants.stock,
+        images: productVariants.images,
+        isPublished: productVariants.isPublished,
+        color: {
+          id: colors.id,
+          name: colors.name,
+          hexCode: colors.hexCode,
+        },
+        size: {
+          id: sizes.id,
+          name: sizes.name,
+          code: sizes.code,
+        },
+      })
+      .from(productVariants)
+      .leftJoin(colors, eq(productVariants.colorId, colors.id))
+      .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
+      .where(inArray(productVariants.productId, productIds));
+
+    const variantsByProductId = new Map<string, typeof variants>();
+    for (const v of variants) {
+      if (!variantsByProductId.has(v.productId)) {
+        variantsByProductId.set(v.productId, []);
+      }
+      variantsByProductId.get(v.productId)!.push(v);
+    }
+
+    return productList.map((product) => {
+      const pVariants = variantsByProductId.get(product.id) || [];
+      const primaryVariant = pVariants[0];
+      const price = primaryVariant?.price ? parseFloat(primaryVariant.price) : 0;
+      const images = product.images?.length > 0 ? product.images : (primaryVariant?.images || []);
+      return {
+        ...product,
+        images,
+        price,
+        variants: pVariants,
+      };
+    });
   }
 
   static async getById(id: string) {
-    const [product] = await db
+    let [product] = await db
       .select()
       .from(products)
       .where(eq(products.id, id))
       .limit(1);
+
+    if (!product) {
+      [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.slug, id))
+        .limit(1);
+    }
 
     if (!product) return null;
 
@@ -68,7 +125,7 @@ export class ProductsService {
       .from(productVariants)
       .leftJoin(colors, eq(productVariants.colorId, colors.id))
       .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
-      .where(eq(productVariants.productId, id));
+      .where(eq(productVariants.productId, product.id));
 
     return {
       ...product,
