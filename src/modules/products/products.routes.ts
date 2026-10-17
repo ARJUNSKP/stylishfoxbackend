@@ -33,6 +33,15 @@ productsRoutes.get("/slug/:slug", async (c) => {
   return sendSuccess(c, product);
 });
 
+// GET /api/v1/products/:id/related - Get related products
+productsRoutes.get("/:id/related", async (c) => {
+  const id = c.req.param("id");
+  if (!id) return sendError(c, "Product ID is required", 400);
+  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 4;
+  const related = await ProductsService.getRelated(id, limit);
+  return sendSuccess(c, related, "Related products retrieved successfully");
+});
+
 // GET /api/v1/products/:id - Get single product
 productsRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");

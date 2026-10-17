@@ -1,4 +1,4 @@
-import { eq, desc, ilike, and, inArray } from "drizzle-orm";
+import { eq, ne, desc, ilike, and, inArray, not } from "drizzle-orm";
 import { db } from "../../config/database.js";
 import { products, productVariants, colors, sizes } from "../../db/schema/index.js";
 import type {
@@ -170,6 +170,99 @@ export class ProductsService {
       ...product,
       variants,
     };
+  }
+
+  static async getRelated(productIdOrSlug: string, limit = 4) {
+    let [currentProduct] = await db
+      .select({ id: products.id, categoryId: products.categoryId })
+      .from(products)
+      .where(eq(products.id, productIdOrSlug))
+      .limit(1);
+
+    if (!currentProduct) {
+      [currentProduct] = await db
+        .select({ id: products.id, categoryId: products.categoryId })
+        .from(products)
+        .where(eq(products.slug, productIdOrSlug))
+        .limit(1);
+    }
+
+    const conditions = [];
+    if (currentProduct) {
+      conditions.push(ne(products.id, currentProduct.id));
+      if (currentProduct.categoryId) {
+        conditions.push(eq(products.categoryId, currentProduct.categoryId));
+      }
+    }
+
+    let relatedList = await db
+      .select()
+      .from(products)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(products.createdAt))
+      .limit(limit);
+
+    // If not enough in same category, backfill with other products
+    if (relatedList.length < limit && currentProduct) {
+      const existingIds = [currentProduct.id, ...relatedList.map((p) => p.id)];
+      const backfill = await db
+        .select()
+        .from(products)
+        .where(not(inArray(products.id, existingIds)))
+        .orderBy(desc(products.createdAt))
+        .limit(limit - relatedList.length);
+
+      relatedList = [...relatedList, ...backfill];
+    }
+
+    if (relatedList.length === 0) return [];
+
+    const productIds = relatedList.map((p) => p.id);
+    const variants = await db
+      .select({
+        id: productVariants.id,
+        productId: productVariants.productId,
+        sku: productVariants.sku,
+        price: productVariants.price,
+        stock: productVariants.stock,
+        images: productVariants.images,
+        isPublished: productVariants.isPublished,
+        color: {
+          id: colors.id,
+          name: colors.name,
+          hexCode: colors.hexCode,
+        },
+        size: {
+          id: sizes.id,
+          name: sizes.name,
+          code: sizes.code,
+        },
+      })
+      .from(productVariants)
+      .leftJoin(colors, eq(productVariants.colorId, colors.id))
+      .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
+      .where(inArray(productVariants.productId, productIds));
+
+    const variantsByProductId = new Map<string, typeof variants>();
+    for (const v of variants) {
+      if (!variantsByProductId.has(v.productId)) {
+        variantsByProductId.set(v.productId, []);
+      }
+      variantsByProductId.get(v.productId)!.push(v);
+    }
+
+    return relatedList.map((product) => {
+      const pVariants = variantsByProductId.get(product.id) || [];
+      const primaryVariant = pVariants[0];
+      const price = primaryVariant?.price ? parseFloat(primaryVariant.price) : 0;
+      const images = product.images?.length > 0 ? product.images : (primaryVariant?.images || []);
+      return {
+        ...product,
+        images,
+        price,
+        variants: pVariants,
+      };
+    });
   }
 
   /**
