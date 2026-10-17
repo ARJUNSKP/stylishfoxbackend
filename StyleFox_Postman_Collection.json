@@ -1,0 +1,473 @@
+{
+  "info": {
+    "name": "StyleFox Backend API",
+    "description": "Complete collection of StyleFox e-commerce REST APIs with environments, payloads, and auth configurations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arjun Sivadas\",\n  \"email\": \"arjun@gmail.com\",\n  \"password\": \"Password@123\",\n  \"phoneNumber\": \"+91 80863 88058\",\n  \"role\": \"customer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"arjun@gmail.com\",\n  \"password\": \"Password@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile (Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Users & Addresses",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arjun Sivadas\",\n  \"phoneNumber\": \"+91 80863 88058\",\n  \"whatsappNumber\": \"+91 80863 88058\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Add Address",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": {\n    \"tag\": \"Home\",\n    \"fullName\": \"Arjun Sivadas\",\n    \"phone\": \"+91 80863 88058\",\n    \"street\": \"Flat 402, Skyline Luxury Apartments, MG Road\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"pincode\": \"560001\"\n  },\n  \"ActiveAddress\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/address",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "address"]
+            }
+          }
+        },
+        {
+          "name": "Set Active Address",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"index\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/address/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "address", "active"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Products",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "categoryId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product by ID (with Variants)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", ":id"],
+              "variable": [{ "key": "id", "value": "5889a877-fba0-4784-babc-c49f900ea8c4" }]
+            }
+          }
+        },
+        {
+          "name": "Create Product (JSON - Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Oversized Boxy Tee\",\n  \"slug\": \"oversized-boxy-tee\",\n  \"tagline\": \"Heavyweight 300 GSM Drop Shoulder\",\n  \"description\": \"Substantial dense jersey crafted for structural drape.\",\n  \"price\": \"49.99\",\n  \"stock\": 50,\n  \"rating\": \"4.8\",\n  \"reviewCount\": 45,\n  \"images\": [],\n  \"features\": [\n    \"300 GSM combed cotton\",\n    \"Double-needle collar trim\",\n    \"Pre-shrunk treatment\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"]
+            }
+          }
+        },
+        {
+          "name": "Create Product with Images (Multipart R2 Upload - Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "name", "value": "Vintage Heavyweight Hoodie", "type": "text" },
+                { "key": "tagline", "value": "400 GSM French Terry", "type": "text" },
+                { "key": "price", "value": "79.99", "type": "text" },
+                { "key": "stock", "value": "30", "type": "text" },
+                { "key": "features", "value": "[\"100% Cotton\", \"Pre-shrunk\"]", "type": "text" },
+                { "key": "images", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products"]
+            }
+          }
+        },
+        {
+          "name": "Upload Product Images (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "images", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/:id/images",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "products", ":id", "images"],
+              "variable": [{ "key": "id", "value": "5889a877-fba0-4784-babc-c49f900ea8c4" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Categories",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories", ":id"],
+              "variable": [{ "key": "id", "value": "b00d0259-2384-4502-95d8-f3280315b564" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Cart",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "cart"]
+            }
+          }
+        },
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"5889a877-fba0-4784-babc-c49f900ea8c4\",\n  \"quantity\": 1,\n  \"selectedSize\": \"L\",\n  \"selectedColor\": \"Midnight Black\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "cart"]
+            }
+          }
+        },
+        {
+          "name": "Remove from Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "cart", ":id"],
+              "variable": [{ "key": "id", "value": "cart-item-id" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Orders",
+      "item": [
+        {
+          "name": "Get User Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            }
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"totalAmount\": \"119.98\",\n  \"items\": [\n    {\n      \"productId\": \"5889a877-fba0-4784-babc-c49f900ea8c4\",\n      \"productName\": \"Oversized Streetwear Hoodie\",\n      \"price\": 59.99,\n      \"quantity\": 2,\n      \"size\": \"L\",\n      \"color\": \"Midnight Black\"\n    }\n  ],\n  \"shippingAddress\": {\n    \"fullName\": \"Rahul Sharma\",\n    \"phone\": \"+91 98765 43211\",\n    \"addressLine1\": \"Flat 402, Skyline Luxury Apartments, MG Road\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"postalCode\": \"560001\",\n    \"country\": \"India\"\n  },\n  \"paymentMethod\": \"cod\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "orders"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Payments",
+      "item": [
+        {
+          "name": "Create Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"order-uuid-here\",\n  \"amount\": 119.98\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/create-intent",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payments", "create-intent"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Uploads (R2)",
+      "item": [
+        {
+          "name": "Get Presigned Upload URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"hoodie-black.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"folder\": \"products\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads/presigned-url",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "uploads", "presigned-url"]
+            }
+          }
+        },
+        {
+          "name": "Direct Upload to R2",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "folder", "value": "products", "type": "text" },
+                { "key": "file", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads/direct",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "uploads", "direct"]
+            }
+          }
+        },
+        {
+          "name": "Delete File from R2",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"products/example-image.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/uploads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "uploads"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
