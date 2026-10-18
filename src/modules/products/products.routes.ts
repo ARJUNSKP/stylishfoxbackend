@@ -16,7 +16,7 @@ export const productsRoutes = new Hono();
 productsRoutes.get("/", async (c) => {
   const categoryId = c.req.query("categoryId");
   const search = c.req.query("search");
-  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 20;
+  const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 50;
 
   const items = await ProductsService.getAll({ categoryId, search, limit });
   return sendSuccess(c, items, "Products retrieved successfully");

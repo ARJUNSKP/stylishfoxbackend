@@ -9,23 +9,29 @@ export const usersRoutes = new Hono();
 
 usersRoutes.use("*", authenticate);
 
-const addressItemSchema = z.object({
-  address: z.union([z.string(), z.record(z.any())]),
-  ActiveAddress: z.boolean().default(false),
-});
+const addressItemSchema = z.union([
+  z.object({
+    address: z.union([z.string(), z.record(z.any())]),
+    ActiveAddress: z.boolean().optional().default(false),
+  }),
+  z.record(z.any()),
+]);
 
 const updateProfileSchema = z.object({
-  name: z.string().min(2).optional(),
-  phoneNumber: z.string().optional(),
-  whatsappNumber: z.string().optional(),
-  avatarUrl: z.string().url().optional(),
-  address: z.array(addressItemSchema).optional(),
+  name: z.string().min(1).optional(),
+  phoneNumber: z.string().optional().nullable(),
+  whatsappNumber: z.string().optional().nullable(),
+  avatarUrl: z.string().optional().nullable(),
+  address: z.array(z.any()).optional(),
 });
 
-const addAddressSchema = z.object({
-  address: z.union([z.string(), z.record(z.any())]),
-  ActiveAddress: z.boolean().optional().default(false),
-});
+const addAddressSchema = z.union([
+  z.object({
+    address: z.union([z.string(), z.record(z.any())]),
+    ActiveAddress: z.boolean().optional().default(false),
+  }),
+  z.record(z.any()),
+]);
 
 const setActiveSchema = z.object({
   index: z.number().int().nonnegative(),
@@ -39,20 +45,39 @@ usersRoutes.get("/profile", async (c) => {
   return sendSuccess(c, profile);
 });
 
-// PATCH /api/v1/users/profile (can update name, phone, avatar, or entire address array)
+// PATCH /api/v1/users/profile (can update name, phone, whatsapp, avatar, or entire address array)
 usersRoutes.patch("/profile", zValidator("json", updateProfileSchema), async (c) => {
   const user = c.get("user");
   const data = c.req.valid("json");
-  const updated = await UsersService.updateProfile(user.id, data);
+  const updated = await UsersService.updateProfile(user.id, data as any);
   return sendSuccess(c, updated, "Profile updated successfully");
 });
 
-// POST /api/v1/users/address (append a single address: { address, ActiveAddress })
+// POST /api/v1/users/address (append a single address: { address, ActiveAddress } or raw address object)
 usersRoutes.post("/address", zValidator("json", addAddressSchema), async (c) => {
   try {
     const user = c.get("user");
-    const data = c.req.valid("json");
-    const updated = await UsersService.addAddress(user.id, data);
+    const rawData = c.req.valid("json") as any;
+    
+    // Normalize address structure if raw fields provided
+    const payload = rawData.address
+      ? rawData
+      : {
+          address: {
+            id: rawData.id,
+            name: rawData.name,
+            phone: rawData.phone,
+            street: rawData.street,
+            city: rawData.city,
+            state: rawData.state,
+            pincode: rawData.pincode,
+            tag: rawData.tag || "Home",
+            isDefault: rawData.isDefault ?? rawData.ActiveAddress ?? false,
+          },
+          ActiveAddress: rawData.ActiveAddress ?? rawData.isDefault ?? false,
+        };
+
+    const updated = await UsersService.addAddress(user.id, payload);
     return sendSuccess(c, updated, "Address added successfully", 201);
   } catch (error: any) {
     return sendError(c, error.message || "Failed to add address", 400);
@@ -68,5 +93,18 @@ usersRoutes.patch("/address/active", zValidator("json", setActiveSchema), async 
     return sendSuccess(c, updated, "Active address updated successfully");
   } catch (error: any) {
     return sendError(c, error.message || "Failed to set active address", 400);
+  }
+});
+
+// DELETE /api/v1/users/address/:index (delete address by index)
+usersRoutes.delete("/address/:index", async (c) => {
+  try {
+    const user = c.get("user");
+    const index = parseInt(c.req.param("index"), 10);
+    if (isNaN(index)) return sendError(c, "Invalid address index", 400);
+    const updated = await UsersService.deleteAddress(user.id, index);
+    return sendSuccess(c, updated, "Address deleted successfully");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to delete address", 400);
   }
 });

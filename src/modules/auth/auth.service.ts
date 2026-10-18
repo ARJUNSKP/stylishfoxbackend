@@ -30,6 +30,10 @@ export class AuthService {
           name: users.name,
           email: users.email,
           role: users.role,
+          phoneNumber: users.phoneNumber,
+          whatsappNumber: users.whatsappNumber,
+          avatarUrl: users.avatarUrl,
+          address: users.address,
           createdAt: users.createdAt,
         });
 
@@ -64,6 +68,8 @@ export class AuthService {
         email: users.email,
         passwordHash: users.passwordHash,
         role: users.role,
+        phoneNumber: users.phoneNumber,
+        whatsappNumber: users.whatsappNumber,
         avatarUrl: users.avatarUrl,
         address: users.address,
       })
@@ -92,6 +98,8 @@ export class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
+        phoneNumber: user.phoneNumber,
+        whatsappNumber: user.whatsappNumber,
         avatarUrl: user.avatarUrl,
         address: user.address,
       },

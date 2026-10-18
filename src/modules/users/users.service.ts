@@ -93,4 +93,23 @@ export class UsersService {
 
     return await this.updateProfile(userId, { address: updatedAddresses });
   }
+
+  static async deleteAddress(userId: string, addressIndex: number) {
+    const user = await this.getProfile(userId);
+    if (!user) throw new Error("User not found");
+
+    let currentAddresses: UserAddressItem[] = Array.isArray(user.address) ? [...user.address] : [];
+    if (addressIndex < 0 || addressIndex >= currentAddresses.length) {
+      throw new Error("Invalid address index");
+    }
+
+    const wasActive = currentAddresses[addressIndex]?.ActiveAddress;
+    currentAddresses.splice(addressIndex, 1);
+
+    if (wasActive && currentAddresses.length > 0) {
+      currentAddresses[0].ActiveAddress = true;
+    }
+
+    return await this.updateProfile(userId, { address: currentAddresses });
+  }
 }
