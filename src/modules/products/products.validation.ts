@@ -12,6 +12,7 @@ export function slugify(text: string): string {
 export const createProductVariantInputSchema = z.object({
   sku: z.string().optional(),
   price: z.union([z.string(), z.number()]).optional(),
+  sellingPrice: z.union([z.string(), z.number()]).optional(),
   stock: z.number().int().nonnegative().optional().default(0),
   colorId: z.string().uuid().optional(),
   sizeId: z.string().uuid().optional(),
@@ -23,6 +24,7 @@ export const createProductVariantInputSchema = z.object({
 export const updateProductVariantSchema = z.object({
   sku: z.string().optional(),
   price: z.union([z.string(), z.number()]).optional(),
+  sellingPrice: z.union([z.string(), z.number()]).optional(),
   stock: z.number().int().nonnegative().optional(),
   colorId: z.string().uuid().optional().nullable(),
   sizeId: z.string().uuid().optional().nullable(),
@@ -43,6 +45,7 @@ export const createProductSchema = z.object({
   categoryId: z.string().uuid().optional(),
   // Optional variant details on initial product creation
   price: z.union([z.string(), z.number()]).optional(),
+  sellingPrice: z.union([z.string(), z.number()]).optional(),
   stock: z.number().int().nonnegative().optional(),
   sku: z.string().optional(),
   colorId: z.string().uuid().optional(),

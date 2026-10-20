@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "../../config/database.js";
 import { users, type UserAddressItem } from "../../db/schema/index.js";
 
@@ -21,6 +21,23 @@ export class UsersService {
       .limit(1);
 
     return user || null;
+  }
+
+  static async getAllUsers() {
+    return await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        phoneNumber: users.phoneNumber,
+        whatsappNumber: users.whatsappNumber,
+        avatarUrl: users.avatarUrl,
+        address: users.address,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt));
   }
 
   static async updateProfile(

@@ -41,3 +41,19 @@ categoriesRoutes.post(
     }
   }
 );
+
+categoriesRoutes.delete("/:id", authenticate, requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    if (!id) return sendError(c, "Category ID is required", 400);
+
+    const category = await CategoriesService.getById(id);
+    if (!category) return sendError(c, "Category not found", 404);
+
+    const deleted = await CategoriesService.delete(id);
+    return sendSuccess(c, deleted, "Category deleted successfully");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to delete category", 400);
+  }
+});
+

@@ -17,8 +17,10 @@ productsRoutes.get("/", async (c) => {
   const categoryId = c.req.query("categoryId");
   const search = c.req.query("search");
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 50;
+  const publishedOnly =
+    c.req.query("publishedOnly") === "true" || c.req.query("published") === "true";
 
-  const items = await ProductsService.getAll({ categoryId, search, limit });
+  const items = await ProductsService.getAll({ categoryId, search, limit, publishedOnly });
   return sendSuccess(c, items, "Products retrieved successfully");
 });
 
@@ -26,7 +28,9 @@ productsRoutes.get("/", async (c) => {
 productsRoutes.get("/slug/:slug", async (c) => {
   const slug = c.req.param("slug");
   if (!slug) return sendError(c, "Product slug is required", 400);
-  const product = await ProductsService.getBySlug(slug);
+  const publishedOnly =
+    c.req.query("publishedOnly") === "true" || c.req.query("published") === "true";
+  const product = await ProductsService.getBySlug(slug, { publishedOnly });
   if (!product) {
     return sendError(c, "Product not found", 404);
   }
@@ -38,7 +42,9 @@ productsRoutes.get("/:id/related", async (c) => {
   const id = c.req.param("id");
   if (!id) return sendError(c, "Product ID is required", 400);
   const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 4;
-  const related = await ProductsService.getRelated(id, limit);
+  const publishedOnly =
+    c.req.query("publishedOnly") === "true" || c.req.query("published") === "true";
+  const related = await ProductsService.getRelated(id, limit, { publishedOnly });
   return sendSuccess(c, related, "Related products retrieved successfully");
 });
 
@@ -46,7 +52,9 @@ productsRoutes.get("/:id/related", async (c) => {
 productsRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
   if (!id) return sendError(c, "Product ID is required", 400);
-  const product = await ProductsService.getById(id);
+  const publishedOnly =
+    c.req.query("publishedOnly") === "true" || c.req.query("published") === "true";
+  const product = await ProductsService.getById(id, { publishedOnly });
   if (!product) {
     return sendError(c, "Product not found", 404);
   }
@@ -115,6 +123,7 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
         features,
         images: existingImages,
         price: (formData.get("price") as string) || undefined,
+        sellingPrice: ((formData.get("sellingPrice") || formData.get("selling_price") || formData.get("Selling_price")) as string) || undefined,
         stock: formData.get("stock")
           ? parseInt(formData.get("stock") as string, 10)
           : undefined,

@@ -3,11 +3,17 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { UsersService } from "./users.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
-import { authenticate } from "../../middleware/auth.middleware.js";
+import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
 
 export const usersRoutes = new Hono();
 
 usersRoutes.use("*", authenticate);
+
+// GET /api/v1/users/admin/all - Get all users (Admin only)
+usersRoutes.get("/admin/all", requireAdmin, async (c) => {
+  const all = await UsersService.getAllUsers();
+  return sendSuccess(c, all, "Users fetched successfully");
+});
 
 const addressItemSchema = z.union([
   z.object({

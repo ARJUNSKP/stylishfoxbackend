@@ -14,6 +14,7 @@ export const productVariants = pgTable("product_variants", {
     .references(() => sizes.id, { onDelete: "set null" }),
   sku: text("sku").unique(),
   price: numeric("price", { precision: 10, scale: 2 }),
+  sellingPrice: numeric("selling_price", { precision: 10, scale: 2 }),
   stock: integer("stock").default(0).notNull(),
   images: jsonb("images").$type<string[]>().default([]).notNull(),
   isPublished: boolean("is_published").default(true).notNull(),

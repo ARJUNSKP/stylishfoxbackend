@@ -14,6 +14,8 @@ import { ordersRoutes } from "./modules/orders/orders.routes.js";
 import { paymentsRoutes } from "./modules/payments/payments.routes.js";
 import { usersRoutes } from "./modules/users/users.routes.js";
 import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
+import { colorsRoutes } from "./modules/colors/colors.routes.js";
+import { sizesRoutes } from "./modules/sizes/sizes.routes.js";
 
 export const app = new Hono();
 
@@ -49,6 +51,8 @@ const api = new Hono();
 api.route("/auth", authRoutes);
 api.route("/products", productsRoutes);
 api.route("/categories", categoriesRoutes);
+api.route("/colors", colorsRoutes);
+api.route("/sizes", sizesRoutes);
 api.route("/cart", cartRoutes);
 api.route("/orders", ordersRoutes);
 api.route("/payments", paymentsRoutes);

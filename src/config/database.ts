@@ -19,6 +19,7 @@ export type Database = typeof db;
 export async function warmUpDatabase() {
   try {
     await client`SELECT 1`;
+    await client`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10, 2);`;
   } catch (err) {
     console.warn("Database pre-warming warning:", err);
   }

@@ -1,6 +1,6 @@
-import { eq, ne, desc, ilike, and, inArray, not } from "drizzle-orm";
+import { eq, ne, desc, ilike, and, inArray, not, or } from "drizzle-orm";
 import { db } from "../../config/database.js";
-import { products, productVariants, colors, sizes } from "../../db/schema/index.js";
+import { products, productVariants, colors, sizes, categories } from "../../db/schema/index.js";
 import type {
   CreateProductInput,
   UpdateProductInput,
@@ -17,34 +17,90 @@ export interface ImageFileInput {
   type: string;
 }
 
+export interface ProductCategoryObj {
+  categoryId: string;
+  categoryName: string;
+  id: string;
+  name: string;
+  slug?: string;
+}
+
+function formatCategory(categoryRow?: any, rawCategoryId?: string | null): ProductCategoryObj | null {
+  if (categoryRow?.id) {
+    return {
+      categoryId: categoryRow.id,
+      categoryName: categoryRow.name,
+      id: categoryRow.id,
+      name: categoryRow.name,
+      slug: categoryRow.slug,
+    };
+  }
+  if (rawCategoryId) {
+    return {
+      categoryId: rawCategoryId,
+      categoryName: rawCategoryId,
+      id: rawCategoryId,
+      name: rawCategoryId,
+    };
+  }
+  return null;
+}
+
 export class ProductsService {
-  static async getAll(options?: { categoryId?: string; search?: string; limit?: number }) {
+  static async getAll(options?: {
+    categoryId?: string;
+    search?: string;
+    limit?: number;
+    publishedOnly?: boolean;
+  }) {
     const limit = options?.limit || 50;
+    const publishedOnly = options?.publishedOnly ?? false;
 
     const conditions = [];
     if (options?.categoryId) {
-      conditions.push(eq(products.categoryId, options.categoryId));
+      conditions.push(
+        or(
+          eq(products.categoryId, options.categoryId),
+          eq(categories.id, options.categoryId),
+          eq(categories.slug, options.categoryId),
+          ilike(categories.name, `%${options.categoryId}%`)
+        )
+      );
     }
     if (options?.search) {
       conditions.push(ilike(products.name, `%${options.search}%`));
     }
 
     const productList = await db
-      .select()
+      .select({
+        product: products,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(products.createdAt))
       .limit(limit);
 
     if (productList.length === 0) return [];
 
-    const productIds = productList.map((p) => p.id);
+    const productIds = productList.map((row) => row.product.id);
+    const variantConditions = [inArray(productVariants.productId, productIds)];
+    if (publishedOnly) {
+      variantConditions.push(eq(productVariants.isPublished, true));
+    }
+
     const variants = await db
       .select({
         id: productVariants.id,
         productId: productVariants.productId,
         sku: productVariants.sku,
         price: productVariants.price,
+        sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
@@ -62,7 +118,7 @@ export class ProductsService {
       .from(productVariants)
       .leftJoin(colors, eq(productVariants.colorId, colors.id))
       .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
-      .where(inArray(productVariants.productId, productIds));
+      .where(and(...variantConditions));
 
     const variantsByProductId = new Map<string, typeof variants>();
     for (const v of variants) {
@@ -72,42 +128,90 @@ export class ProductsService {
       variantsByProductId.get(v.productId)!.push(v);
     }
 
-    return productList.map((product) => {
+    const result = [];
+    for (const row of productList) {
+      const product = row.product;
+      const categoryObj = formatCategory(row.category, product.categoryId);
       const pVariants = variantsByProductId.get(product.id) || [];
+
+      // If client requests published only, skip products that have 0 published variants
+      if (publishedOnly && pVariants.length === 0) {
+        continue;
+      }
+
       const primaryVariant = pVariants[0];
-      const price = primaryVariant?.price ? parseFloat(primaryVariant.price) : 0;
+      const validPrices = pVariants
+        .map((v) => (v.sellingPrice ? parseFloat(v.sellingPrice) : v.price ? parseFloat(v.price) : 0))
+        .filter((p) => !isNaN(p) && p > 0);
+      const price =
+        validPrices.length > 0
+          ? Math.min(...validPrices)
+          : primaryVariant?.price
+          ? parseFloat(primaryVariant.price)
+          : 0;
       const images = product.images?.length > 0 ? product.images : (primaryVariant?.images || []);
-      return {
+
+      result.push({
         ...product,
         images,
         price,
+        categoryId: categoryObj,
+        category: categoryObj,
         variants: pVariants,
-      };
-    });
+      });
+    }
+
+    return result;
   }
 
-  static async getById(id: string) {
-    let [product] = await db
-      .select()
+  static async getById(id: string, options?: { publishedOnly?: boolean }) {
+    const publishedOnly = options?.publishedOnly ?? false;
+    let [row] = await db
+      .select({
+        product: products,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.id, id))
       .limit(1);
 
-    if (!product) {
-      [product] = await db
-        .select()
+    if (!row) {
+      [row] = await db
+        .select({
+          product: products,
+          category: {
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+          },
+        })
         .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
         .where(eq(products.slug, id))
         .limit(1);
     }
 
-    if (!product) return null;
+    if (!row) return null;
+
+    const product = row.product;
+    const categoryObj = formatCategory(row.category, product.categoryId);
+
+    const variantConditions = [eq(productVariants.productId, product.id)];
+    if (publishedOnly) {
+      variantConditions.push(eq(productVariants.isPublished, true));
+    }
 
     const variants = await db
       .select({
         id: productVariants.id,
         sku: productVariants.sku,
         price: productVariants.price,
+        sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
@@ -125,28 +229,53 @@ export class ProductsService {
       .from(productVariants)
       .leftJoin(colors, eq(productVariants.colorId, colors.id))
       .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
-      .where(eq(productVariants.productId, product.id));
+      .where(and(...variantConditions));
+
+    // If client requested published only and all variants are unpublished, return null
+    if (publishedOnly && variants.length === 0) {
+      return null;
+    }
 
     return {
       ...product,
+      categoryId: categoryObj,
+      category: categoryObj,
       variants,
     };
   }
 
-  static async getBySlug(slug: string) {
-    const [product] = await db
-      .select()
+  static async getBySlug(slug: string, options?: { publishedOnly?: boolean }) {
+    const publishedOnly = options?.publishedOnly ?? false;
+    const [row] = await db
+      .select({
+        product: products,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(eq(products.slug, slug))
       .limit(1);
 
-    if (!product) return null;
+    if (!row) return null;
+
+    const product = row.product;
+    const categoryObj = formatCategory(row.category, product.categoryId);
+
+    const variantConditions = [eq(productVariants.productId, product.id)];
+    if (publishedOnly) {
+      variantConditions.push(eq(productVariants.isPublished, true));
+    }
 
     const variants = await db
       .select({
         id: productVariants.id,
         sku: productVariants.sku,
         price: productVariants.price,
+        sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
@@ -164,15 +293,22 @@ export class ProductsService {
       .from(productVariants)
       .leftJoin(colors, eq(productVariants.colorId, colors.id))
       .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
-      .where(eq(productVariants.productId, product.id));
+      .where(and(...variantConditions));
+
+    if (publishedOnly && variants.length === 0) {
+      return null;
+    }
 
     return {
       ...product,
+      categoryId: categoryObj,
+      category: categoryObj,
       variants,
     };
   }
 
-  static async getRelated(productIdOrSlug: string, limit = 4) {
+  static async getRelated(productIdOrSlug: string, limit = 4, options?: { publishedOnly?: boolean }) {
+    const publishedOnly = options?.publishedOnly ?? false;
     let [currentProduct] = await db
       .select({ id: products.id, categoryId: products.categoryId })
       .from(products)
@@ -196,18 +332,34 @@ export class ProductsService {
     }
 
     let relatedList = await db
-      .select()
+      .select({
+        product: products,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          slug: categories.slug,
+        },
+      })
       .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(products.createdAt))
       .limit(limit);
 
     // If not enough in same category, backfill with other products
     if (relatedList.length < limit && currentProduct) {
-      const existingIds = [currentProduct.id, ...relatedList.map((p) => p.id)];
+      const existingIds = [currentProduct.id, ...relatedList.map((r) => r.product.id)];
       const backfill = await db
-        .select()
+        .select({
+          product: products,
+          category: {
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+          },
+        })
         .from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id))
         .where(not(inArray(products.id, existingIds)))
         .orderBy(desc(products.createdAt))
         .limit(limit - relatedList.length);
@@ -217,13 +369,19 @@ export class ProductsService {
 
     if (relatedList.length === 0) return [];
 
-    const productIds = relatedList.map((p) => p.id);
+    const productIds = relatedList.map((r) => r.product.id);
+    const variantConditions = [inArray(productVariants.productId, productIds)];
+    if (publishedOnly) {
+      variantConditions.push(eq(productVariants.isPublished, true));
+    }
+
     const variants = await db
       .select({
         id: productVariants.id,
         productId: productVariants.productId,
         sku: productVariants.sku,
         price: productVariants.price,
+        sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
@@ -241,7 +399,7 @@ export class ProductsService {
       .from(productVariants)
       .leftJoin(colors, eq(productVariants.colorId, colors.id))
       .leftJoin(sizes, eq(productVariants.sizeId, sizes.id))
-      .where(inArray(productVariants.productId, productIds));
+      .where(and(...variantConditions));
 
     const variantsByProductId = new Map<string, typeof variants>();
     for (const v of variants) {
@@ -251,18 +409,35 @@ export class ProductsService {
       variantsByProductId.get(v.productId)!.push(v);
     }
 
-    return relatedList.map((product) => {
-      const pVariants = variantsByProductId.get(product.id) || [];
+    const finalRelated = [];
+    for (const row of relatedList) {
+      const pVariants = variantsByProductId.get(row.product.id) || [];
+      if (publishedOnly && pVariants.length === 0) {
+        continue;
+      }
       const primaryVariant = pVariants[0];
-      const price = primaryVariant?.price ? parseFloat(primaryVariant.price) : 0;
-      const images = product.images?.length > 0 ? product.images : (primaryVariant?.images || []);
-      return {
-        ...product,
+      const validPrices = pVariants
+        .map((v) => (v.sellingPrice ? parseFloat(v.sellingPrice) : v.price ? parseFloat(v.price) : 0))
+        .filter((p) => !isNaN(p) && p > 0);
+      const price =
+        validPrices.length > 0
+          ? Math.min(...validPrices)
+          : primaryVariant?.price
+          ? parseFloat(primaryVariant.price)
+          : 0;
+      const images = row.product.images?.length > 0 ? row.product.images : (primaryVariant?.images || []);
+
+      finalRelated.push({
+        ...row.product,
         images,
         price,
+        categoryId: formatCategory(row.category, row.product.categoryId),
+        category: formatCategory(row.category, row.product.categoryId),
         variants: pVariants,
-      };
-    });
+      });
+    }
+
+    return finalRelated;
   }
 
   /**
@@ -294,6 +469,19 @@ export class ProductsService {
             uploadedUrls.push(url);
           } else if (img.startsWith("http://") || img.startsWith("https://")) {
             uploadedUrls.push(img);
+          }
+        }
+      }
+    }
+
+    // Fallback: If no product-level images provided, collect images from variants
+    if (uploadedUrls.length === 0 && Array.isArray(data.variants)) {
+      for (const v of data.variants) {
+        if (Array.isArray(v.images)) {
+          for (const img of v.images) {
+            if (typeof img === "string" && (img.startsWith("http://") || img.startsWith("https://")) && !uploadedUrls.includes(img)) {
+              uploadedUrls.push(img);
+            }
           }
         }
       }
@@ -356,6 +544,7 @@ export class ProductsService {
           productId: product.id,
           sku,
           price: v.price != null ? String(v.price) : "0.00",
+          sellingPrice: v.sellingPrice != null && v.sellingPrice !== "" ? String(v.sellingPrice) : null,
           stock: v.stock != null ? Number(v.stock) : 0,
           colorId: v.colorId,
           sizeId: v.sizeId,
@@ -384,6 +573,7 @@ export class ProductsService {
         productId: product.id,
         sku,
         price: data.price != null ? String(data.price) : "0.00",
+        sellingPrice: data.sellingPrice != null && data.sellingPrice !== "" ? String(data.sellingPrice) : null,
         stock: data.stock != null ? Number(data.stock) : 0,
         colorId: data.colorId,
         sizeId: data.sizeId,
@@ -462,7 +652,12 @@ export class ProductsService {
         reviewCount: data.reviewCount ?? existing.reviewCount,
         features,
         images: finalImages,
-        categoryId: data.categoryId ?? existing.categoryId,
+        categoryId:
+          data.categoryId !== undefined
+            ? data.categoryId
+            : typeof existing.categoryId === "object" && existing.categoryId !== null
+            ? existing.categoryId.categoryId
+            : existing.categoryId,
         updatedAt: new Date(),
       })
       .where(eq(products.id, id));
@@ -583,6 +778,7 @@ export class ProductsService {
         productId,
         sku,
         price: data.price != null ? String(data.price) : "0.00",
+        sellingPrice: data.sellingPrice != null && data.sellingPrice !== "" ? String(data.sellingPrice) : null,
         stock: data.stock != null ? Number(data.stock) : 0,
         colorId: data.colorId,
         sizeId: data.sizeId,
@@ -610,6 +806,7 @@ export class ProductsService {
     };
     if (data.sku !== undefined) updateFields.sku = data.sku;
     if (data.price !== undefined) updateFields.price = String(data.price);
+    if (data.sellingPrice !== undefined) updateFields.sellingPrice = String(data.sellingPrice);
     if (data.stock !== undefined) updateFields.stock = data.stock;
     if (data.colorId !== undefined) updateFields.colorId = data.colorId;
     if (data.sizeId !== undefined) updateFields.sizeId = data.sizeId;
