@@ -48,4 +48,8 @@ export class UploadsService {
   static async deleteFile(keyOrUrl: string) {
     return await R2Service.deleteFile(keyOrUrl);
   }
+
+  static async getFile(key: string) {
+    return await R2Service.getFile(key);
+  }
 }

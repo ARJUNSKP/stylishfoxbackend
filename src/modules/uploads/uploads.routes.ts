@@ -7,12 +7,30 @@ import { authenticate } from "../../middleware/auth.middleware.js";
 
 export const uploadsRoutes = new Hono();
 
+// GET /api/v1/uploads/file/:folder/:fileName - Public access to R2 uploaded file (no auth required)
+uploadsRoutes.get("/file/:folder/:fileName", async (c) => {
+  try {
+    const { folder, fileName } = c.req.param();
+    const key = `${folder}/${fileName}`;
+    const file = await UploadsService.getFile(key);
+    if (!file) {
+      return sendError(c, "File not found", 404);
+    }
+    c.header("Content-Type", file.contentType);
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
+    return c.body(file.data.buffer as ArrayBuffer);
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to retrieve file", 500);
+  }
+});
+
+// Require authentication for upload and management endpoints
 uploadsRoutes.use("*", authenticate);
 
 const presignedSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().min(1),
-  folder: z.enum(["products", "avatars", "categories", "banners"]).default("products"),
+  folder: z.enum(["products", "avatars", "categories", "banners", "carousels"]).default("products"),
 });
 
 // POST /api/v1/uploads/presigned-url
@@ -39,9 +57,25 @@ uploadsRoutes.post("/direct", async (c) => {
       ...formData.getAll("images"),
     ];
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB limit
+
     const uploaded = [];
     for (const item of candidates) {
       if (item instanceof File && item.size > 0) {
+        if (item.size > MAX_FILE_SIZE) {
+          return sendError(
+            c,
+            `File "${item.name}" exceeds the maximum allowed size of 5 MB (${(item.size / (1024 * 1024)).toFixed(2)} MB)`,
+            400
+          );
+        }
+        if (item.type && !item.type.startsWith("image/")) {
+          return sendError(
+            c,
+            `File "${item.name}" is not a valid image format. Only images are allowed.`,
+            400
+          );
+        }
         const buffer = Buffer.from(await item.arrayBuffer());
         const res = await UploadsService.uploadDirect(
           item.name,

@@ -443,7 +443,11 @@ export class ProductsService {
   /**
    * Creates a new product and uploads any provided image files or base64 images to Cloudflare R2
    */
-  static async create(data: CreateProductInput, imageFiles: ImageFileInput[] = []) {
+  static async create(
+    data: CreateProductInput,
+    imageFiles: ImageFileInput[] = [],
+    variantFilesMap?: Map<number, ImageFileInput[]>
+  ) {
     const uploadedUrls: string[] = [];
 
     // 1. Upload any multipart image files to Cloudflare R2
@@ -479,7 +483,12 @@ export class ProductsService {
       for (const v of data.variants) {
         if (Array.isArray(v.images)) {
           for (const img of v.images) {
-            if (typeof img === "string" && (img.startsWith("http://") || img.startsWith("https://")) && !uploadedUrls.includes(img)) {
+            if (
+              typeof img === "string" &&
+              !img.startsWith("blob:") &&
+              (img.startsWith("http://") || img.startsWith("https://")) &&
+              !uploadedUrls.includes(img)
+            ) {
               uploadedUrls.push(img);
             }
           }
@@ -530,8 +539,34 @@ export class ProductsService {
 
     // 6. Handle Variants (if variants array or price/stock provided)
     if (data.variants && Array.isArray(data.variants) && data.variants.length > 0) {
-      for (const v of data.variants) {
-        const variantImages = v.images && v.images.length > 0 ? v.images : uploadedUrls;
+      for (let i = 0; i < data.variants.length; i++) {
+        const v = data.variants[i];
+        const vFiles = variantFilesMap?.get(i) || [];
+        const variantUploadedUrls: string[] = [];
+
+        // Upload any variant-specific image files to Cloudflare R2
+        if (vFiles.length > 0) {
+          for (const file of vFiles) {
+            const { url } = await UploadsService.uploadDirect(
+              file.name,
+              file.buffer,
+              file.type,
+              "products"
+            );
+            variantUploadedUrls.push(url);
+          }
+        }
+
+        // Filter out blob preview URLs
+        const existingUrls = (v.images || []).filter(
+          (img) => typeof img === "string" && !img.startsWith("blob:")
+        );
+
+        let variantImages = [...existingUrls, ...variantUploadedUrls];
+        if (variantImages.length === 0 && uploadedUrls.length > 0) {
+          variantImages = uploadedUrls;
+        }
+
         const sku = v.sku || `SF-${slug.slice(0, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
         const isPublished =
           v.isPublished !== undefined
@@ -697,7 +732,7 @@ export class ProductsService {
   }
 
   /**
-   * Removes an image from a product and deletes it from Cloudflare R2
+   * Removes an image from a product and all its variants, and deletes it from Cloudflare R2
    */
   static async removeImage(id: string, imageUrl: string) {
     const product = await this.getById(id);
@@ -710,6 +745,19 @@ export class ProductsService {
       .set({ images: updatedImages, updatedAt: new Date() })
       .where(eq(products.id, id));
 
+    // Also remove from any productVariants of this product
+    if (product.variants && Array.isArray(product.variants)) {
+      for (const v of product.variants) {
+        if (Array.isArray(v.images) && v.images.includes(imageUrl)) {
+          const vImages = v.images.filter((url: string) => url !== imageUrl);
+          await db
+            .update(productVariants)
+            .set({ images: vImages, updatedAt: new Date() })
+            .where(eq(productVariants.id, v.id));
+        }
+      }
+    }
+
     // Delete object from Cloudflare R2
     try {
       await R2Service.deleteFile(imageUrl);
@@ -718,6 +766,48 @@ export class ProductsService {
     }
 
     return await this.getById(id);
+  }
+
+  /**
+   * Removes an image from a specific variant and deletes it from Cloudflare R2
+   */
+  static async removeVariantImage(variantId: string, imageUrl: string) {
+    const [variant] = await db
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.id, variantId))
+      .limit(1);
+
+    if (!variant) return null;
+
+    const currentImages = Array.isArray(variant.images) ? variant.images : [];
+    const updatedImages = currentImages.filter((url: string) => url !== imageUrl);
+
+    await db
+      .update(productVariants)
+      .set({ images: updatedImages, updatedAt: new Date() })
+      .where(eq(productVariants.id, variantId));
+
+    // Also remove from parent product if present
+    if (variant.productId) {
+      const product = await this.getById(variant.productId);
+      if (product && Array.isArray(product.images) && product.images.includes(imageUrl)) {
+        const pImages = product.images.filter((url: string) => url !== imageUrl);
+        await db
+          .update(products)
+          .set({ images: pImages, updatedAt: new Date() })
+          .where(eq(products.id, variant.productId));
+      }
+    }
+
+    // Delete object from Cloudflare R2
+    try {
+      await R2Service.deleteFile(imageUrl);
+    } catch (err) {
+      console.error("Failed to delete file from R2:", err);
+    }
+
+    return await this.getById(variant.productId);
   }
 
   /**
@@ -757,9 +847,31 @@ export class ProductsService {
   /**
    * Adds a new variant to an existing product
    */
-  static async createVariant(productId: string, data: CreateProductVariantInput) {
+  static async createVariant(
+    productId: string,
+    data: CreateProductVariantInput,
+    imageFiles: ImageFileInput[] = []
+  ) {
     const product = await this.getById(productId);
     if (!product) return null;
+
+    const uploadedUrls: string[] = [];
+    if (imageFiles.length > 0) {
+      for (const file of imageFiles) {
+        const { url } = await UploadsService.uploadDirect(
+          file.name,
+          file.buffer,
+          file.type,
+          "products"
+        );
+        uploadedUrls.push(url);
+      }
+    }
+
+    const filtered = (data.images || []).filter(
+      (img) => typeof img === "string" && !img.startsWith("blob:")
+    );
+    const finalImages = [...filtered, ...uploadedUrls];
 
     const isPublished =
       data.isPublished !== undefined
@@ -782,7 +894,7 @@ export class ProductsService {
         stock: data.stock != null ? Number(data.stock) : 0,
         colorId: data.colorId,
         sizeId: data.sizeId,
-        images: data.images || product.images || [],
+        images: finalImages.length > 0 ? finalImages : product.images || [],
         isPublished,
       })
       .returning();
@@ -793,7 +905,24 @@ export class ProductsService {
   /**
    * Updates a product variant (including isPublished boolean status)
    */
-  static async updateVariant(variantId: string, data: UpdateProductVariantInput) {
+  static async updateVariant(
+    variantId: string,
+    data: UpdateProductVariantInput,
+    imageFiles: ImageFileInput[] = []
+  ) {
+    const uploadedUrls: string[] = [];
+    if (imageFiles.length > 0) {
+      for (const file of imageFiles) {
+        const { url } = await UploadsService.uploadDirect(
+          file.name,
+          file.buffer,
+          file.type,
+          "products"
+        );
+        uploadedUrls.push(url);
+      }
+    }
+
     const isPublished =
       data.isPublished !== undefined
         ? data.isPublished
@@ -810,7 +939,13 @@ export class ProductsService {
     if (data.stock !== undefined) updateFields.stock = data.stock;
     if (data.colorId !== undefined) updateFields.colorId = data.colorId;
     if (data.sizeId !== undefined) updateFields.sizeId = data.sizeId;
-    if (data.images !== undefined) updateFields.images = data.images;
+
+    if (data.images !== undefined || uploadedUrls.length > 0) {
+      const existing = (data.images || []).filter(
+        (img) => typeof img === "string" && !img.startsWith("blob:")
+      );
+      updateFields.images = [...existing, ...uploadedUrls];
+    }
     if (isPublished !== undefined) updateFields.isPublished = isPublished;
 
     const [updated] = await db

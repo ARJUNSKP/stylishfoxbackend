@@ -72,6 +72,12 @@ async function extractImageFiles(formData: FormData) {
   const imageFiles: { name: string; buffer: Buffer; type: string }[] = [];
   for (const item of fileEntries) {
     if (item instanceof File && item.size > 0) {
+      if (item.size > 5 * 1024 * 1024) {
+        throw new Error(`File "${item.name}" exceeds the maximum allowed size of 5 MB (${(item.size / (1024 * 1024)).toFixed(2)} MB)`);
+      }
+      if (item.type && !item.type.startsWith("image/")) {
+        throw new Error(`File "${item.name}" is not a valid image format`);
+      }
       const buffer = Buffer.from(await item.arrayBuffer());
       imageFiles.push({
         name: item.name,
@@ -83,6 +89,42 @@ async function extractImageFiles(formData: FormData) {
   return imageFiles;
 }
 
+// Helper to extract image files for a specific variant index
+async function extractVariantImageFiles(formData: FormData, index: number) {
+  const keys = [
+    `variant_${index}_images`,
+    `variant_${index}_image`,
+    `variant_${index}_files`,
+    `variant_${index}_file`,
+    `variants[${index}][images]`,
+    `variants[${index}][files]`,
+  ];
+  const fileEntries: File[] = [];
+  for (const k of keys) {
+    for (const item of formData.getAll(k)) {
+      if (item instanceof File && item.size > 0) {
+        fileEntries.push(item);
+      }
+    }
+  }
+  const imageFiles: { name: string; buffer: Buffer; type: string }[] = [];
+  for (const item of fileEntries) {
+    if (item.size > 5 * 1024 * 1024) {
+      throw new Error(`File "${item.name}" exceeds the maximum allowed size of 5 MB (${(item.size / (1024 * 1024)).toFixed(2)} MB)`);
+    }
+    if (item.type && !item.type.startsWith("image/")) {
+      throw new Error(`File "${item.name}" is not a valid image format`);
+    }
+    const buffer = Buffer.from(await item.arrayBuffer());
+    imageFiles.push({
+      name: item.name,
+      buffer,
+      type: item.type || "image/jpeg",
+    });
+  }
+  return imageFiles;
+}
+
 // POST /api/v1/products - Create new product with automatic R2 image upload (Admin only)
 // Supports both multipart/form-data (with file upload) and application/json
 productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
@@ -90,6 +132,7 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
     const contentType = c.req.header("content-type") || "";
     let inputData: any = {};
     let imageFiles: { name: string; buffer: Buffer; type: string }[] = [];
+    const variantFilesMap = new Map<number, { name: string; buffer: Buffer; type: string }[]>();
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await c.req.formData();
@@ -109,6 +152,27 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
       }
 
       const existingImages = formData.getAll("existingImages").map(String);
+
+      // Extract variants if supplied in FormData
+      let variants: any = undefined;
+      const rawVariants = formData.get("variants");
+      if (rawVariants) {
+        try {
+          variants = JSON.parse(String(rawVariants));
+        } catch {
+          variants = undefined;
+        }
+      }
+
+      // Extract any variant-specific image files
+      if (Array.isArray(variants)) {
+        for (let i = 0; i < variants.length; i++) {
+          const vFiles = await extractVariantImageFiles(formData, i);
+          if (vFiles.length > 0) {
+            variantFilesMap.set(i, vFiles);
+          }
+        }
+      }
 
       inputData = {
         name: formData.get("name") as string,
@@ -130,6 +194,7 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
         sku: (formData.get("sku") as string) || undefined,
         colorId: (formData.get("colorId") as string) || undefined,
         sizeId: (formData.get("sizeId") as string) || undefined,
+        variants,
       };
     } else {
       inputData = await c.req.json();
@@ -144,7 +209,7 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
       );
     }
 
-    const product = await ProductsService.create(validation.data, imageFiles);
+    const product = await ProductsService.create(validation.data, imageFiles, variantFilesMap);
     return sendSuccess(c, product, "Product created and images uploaded to R2 successfully", 201);
   } catch (error: any) {
     return sendError(c, error.message || "Failed to create product", 400);
@@ -276,48 +341,160 @@ productsRoutes.delete("/:id", authenticate, requireAdmin, async (c) => {
   return sendSuccess(c, deleted, "Product deleted successfully and R2 assets cleaned up");
 });
 
-// POST /api/v1/products/:id/variants - Add a variant to product (Admin only)
-productsRoutes.post(
-  "/:id/variants",
-  authenticate,
-  requireAdmin,
-  zValidator("json", createProductVariantInputSchema),
-  async (c) => {
-    try {
-      const id = c.req.param("id");
-      const data = c.req.valid("json");
-      const variant = await ProductsService.createVariant(id, data);
-      if (!variant) {
-        return sendError(c, "Product not found", 404);
-      }
-      return sendSuccess(c, variant, "Variant added successfully", 201);
-    } catch (error: any) {
-      return sendError(c, error.message || "Failed to create variant", 400);
-    }
-  }
-);
+// POST /api/v1/products/:id/variants - Add a variant to product with R2 image upload (Admin only)
+productsRoutes.post("/:id/variants", authenticate, requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    if (!id) return sendError(c, "Product ID is required", 400);
+    const contentType = c.req.header("content-type") || "";
+    let data: any = {};
+    let imageFiles: { name: string; buffer: Buffer; type: string }[] = [];
 
-// PUT /api/v1/products/variants/:variantId - Update variant details & publish state (Admin only)
-productsRoutes.put(
-  "/variants/:variantId",
-  authenticate,
-  requireAdmin,
-  zValidator("json", updateProductVariantSchema),
-  async (c) => {
-    try {
-      const variantId = c.req.param("variantId");
-      if (!variantId) return sendError(c, "Variant ID is required", 400);
-      const data = c.req.valid("json");
-      const variant = await ProductsService.updateVariant(variantId, data);
-      if (!variant) {
-        return sendError(c, "Variant not found", 404);
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await c.req.formData();
+      imageFiles = await extractImageFiles(formData);
+      data = {
+        colorId: (formData.get("colorId") as string) || undefined,
+        sizeId: (formData.get("sizeId") as string) || undefined,
+        price: (formData.get("price") as string) || undefined,
+        sellingPrice: (formData.get("sellingPrice") as string) || undefined,
+        stock: formData.get("stock") ? parseInt(formData.get("stock") as string, 10) : 0,
+        sku: (formData.get("sku") as string) || undefined,
+        isPublished: formData.get("isPublished") !== "false",
+      };
+      const rawExistingEntries = [
+        ...formData.getAll("existingImages"),
+        ...formData.getAll("images"),
+      ];
+      const parsedImages: string[] = [];
+      for (const entry of rawExistingEntries) {
+        if (typeof entry === "string" && !entry.startsWith("blob:")) {
+          if (entry.startsWith("[") && entry.endsWith("]")) {
+            try {
+              const arr = JSON.parse(entry);
+              if (Array.isArray(arr)) {
+                for (const item of arr) {
+                  if (typeof item === "string" && !item.startsWith("blob:")) {
+                    parsedImages.push(item);
+                  }
+                }
+                continue;
+              }
+            } catch {}
+          }
+          parsedImages.push(entry);
+        }
       }
-      return sendSuccess(c, variant, "Variant updated successfully");
-    } catch (error: any) {
-      return sendError(c, error.message || "Failed to update variant", 400);
+      data.images = parsedImages;
+    } else {
+      data = await c.req.json();
     }
+
+    const validation = createProductVariantInputSchema.safeParse(data);
+    if (!validation.success) {
+      return sendError(c, validation.error.errors[0]?.message || "Validation failed", 400);
+    }
+
+    const variant = await ProductsService.createVariant(id, validation.data, imageFiles);
+    if (!variant) {
+      return sendError(c, "Product not found", 404);
+    }
+    return sendSuccess(c, variant, "Variant added and images uploaded to R2 successfully", 201);
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to create variant", 400);
   }
-);
+});
+
+// PUT /api/v1/products/variants/:variantId - Update variant details & R2 image upload (Admin only)
+productsRoutes.put("/variants/:variantId", authenticate, requireAdmin, async (c) => {
+  try {
+    const variantId = c.req.param("variantId");
+    if (!variantId) return sendError(c, "Variant ID is required", 400);
+
+    const contentType = c.req.header("content-type") || "";
+    let data: any = {};
+    let imageFiles: { name: string; buffer: Buffer; type: string }[] = [];
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await c.req.formData();
+      imageFiles = await extractImageFiles(formData);
+      data = {
+        colorId: (formData.get("colorId") as string) || null,
+        sizeId: (formData.get("sizeId") as string) || null,
+        price: (formData.get("price") as string) || undefined,
+        sellingPrice: (formData.get("sellingPrice") as string) || undefined,
+        stock: formData.get("stock") ? parseInt(formData.get("stock") as string, 10) : undefined,
+        sku: (formData.get("sku") as string) || undefined,
+        isPublished:
+          formData.get("isPublished") !== undefined
+            ? formData.get("isPublished") === "true"
+            : undefined,
+      };
+      const rawExistingEntries = [
+        ...formData.getAll("existingImages"),
+        ...formData.getAll("images"),
+      ];
+      const parsedImages: string[] = [];
+      for (const entry of rawExistingEntries) {
+        if (typeof entry === "string" && !entry.startsWith("blob:")) {
+          if (entry.startsWith("[") && entry.endsWith("]")) {
+            try {
+              const arr = JSON.parse(entry);
+              if (Array.isArray(arr)) {
+                for (const item of arr) {
+                  if (typeof item === "string" && !item.startsWith("blob:")) {
+                    parsedImages.push(item);
+                  }
+                }
+                continue;
+              }
+            } catch {}
+          }
+          parsedImages.push(entry);
+        }
+      }
+      data.images = parsedImages;
+    } else {
+      data = await c.req.json();
+    }
+
+    const validation = updateProductVariantSchema.safeParse(data);
+    if (!validation.success) {
+      return sendError(c, validation.error.errors[0]?.message || "Validation failed", 400);
+    }
+
+    const variant = await ProductsService.updateVariant(variantId, validation.data, imageFiles);
+    if (!variant) {
+      return sendError(c, "Variant not found", 404);
+    }
+    return sendSuccess(c, variant, "Variant updated and images uploaded to R2 successfully");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to update variant", 400);
+  }
+});
+
+// DELETE /api/v1/products/variants/:variantId/images - Remove an image from variant & delete from Cloudflare R2 (Admin only)
+productsRoutes.delete("/variants/:variantId/images", authenticate, requireAdmin, async (c) => {
+  try {
+    const variantId = c.req.param("variantId");
+    if (!variantId) return sendError(c, "Variant ID is required", 400);
+
+    const body = await c.req.json();
+    const imageUrl = body.imageUrl || body.url;
+    if (!imageUrl) {
+      return sendError(c, "Image URL is required (imageUrl)", 400);
+    }
+
+    const updated = await ProductsService.removeVariantImage(variantId, imageUrl);
+    if (!updated) {
+      return sendError(c, "Variant not found", 404);
+    }
+
+    return sendSuccess(c, updated, "Image removed from variant and purged from Cloudflare R2");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to remove variant image", 500);
+  }
+});
 
 // PATCH /api/v1/products/variants/:variantId/publish - Toggle/Set variant published status (Admin only)
 productsRoutes.patch("/variants/:variantId/publish", authenticate, requireAdmin, async (c) => {

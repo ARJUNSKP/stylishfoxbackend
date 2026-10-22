@@ -11,6 +11,7 @@ const client = postgres(env.DATABASE_URL, {
   connect_timeout: 15,
   prepare: false, // Recommended for Neon PgBouncer pooler
   ssl: isNeon || env.DATABASE_URL.includes("sslmode=require") ? "require" : undefined,
+  onnotice: () => {}, // Suppress informational NOTICE messages (e.g., column already exists, skipping)
 });
 
 export const db = drizzle(client, { schema });

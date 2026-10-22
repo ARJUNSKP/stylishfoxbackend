@@ -36,11 +36,18 @@ export class R2Service {
    */
   static extractKeyFromUrl(url: string): string | null {
     try {
-      if (url.startsWith(env.R2_PUBLIC_URL)) {
-        return url.replace(`${env.R2_PUBLIC_URL}/`, "");
+      if (env.R2_PUBLIC_URL && url.startsWith(env.R2_PUBLIC_URL)) {
+        return url.replace(`${env.R2_PUBLIC_URL}/`, "").replace(/^\/+/, "");
       }
       const parsed = new URL(url);
-      return parsed.pathname.replace(/^\/+/, "");
+      let key = parsed.pathname.replace(/^\/+/, "");
+      if (key.startsWith("api/v1/uploads/file/")) {
+        key = key.replace("api/v1/uploads/file/", "");
+      }
+      if (env.R2_BUCKET_NAME && key.startsWith(`${env.R2_BUCKET_NAME}/`)) {
+        key = key.replace(`${env.R2_BUCKET_NAME}/`, "");
+      }
+      return key;
     } catch {
       return null;
     }
@@ -127,5 +134,33 @@ export class R2Service {
     });
 
     await r2Client.send(command);
+  }
+
+  /**
+   * Retrieves a file from Cloudflare R2 as a Uint8Array buffer
+   */
+  static async getFile(
+    key: string
+  ): Promise<{ data: Uint8Array; contentType: string } | null> {
+    if (!this.isConfigured()) {
+      return null;
+    }
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: env.R2_BUCKET_NAME,
+        Key: key,
+      });
+
+      const response = await r2Client.send(command);
+      if (!response.Body) return null;
+      const data = await response.Body.transformToByteArray();
+      return {
+        data,
+        contentType: response.ContentType || "application/octet-stream",
+      };
+    } catch {
+      return null;
+    }
   }
 }
