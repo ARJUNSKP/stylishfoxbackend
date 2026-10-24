@@ -47,6 +47,12 @@ app.get("/health", (c) => {
     timestamp: new Date().toISOString(),
   });
 });
+app.get('/', (c) => {
+  return c.json({
+    success: true,
+    message: 'Stylishfox backend is running',
+  })
+})
 
 // API Routes (v1)
 const api = new Hono();
