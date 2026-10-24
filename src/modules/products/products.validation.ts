@@ -17,7 +17,7 @@ export const createProductVariantInputSchema = z.object({
   colorId: z.string().uuid().optional(),
   sizeId: z.string().uuid().optional(),
   images: z.array(z.string()).optional().default([]),
-  isPublished: z.boolean().optional().default(true),
+  isPublished: z.boolean().optional().default(false),
   published: z.boolean().optional(),
 });
 
@@ -50,7 +50,7 @@ export const createProductSchema = z.object({
   sku: z.string().optional(),
   colorId: z.string().uuid().optional(),
   sizeId: z.string().uuid().optional(),
-  isPublished: z.boolean().optional().default(true),
+  isPublished: z.boolean().optional().default(false),
   published: z.boolean().optional(),
   variants: z.array(createProductVariantInputSchema).optional(),
 });

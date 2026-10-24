@@ -573,7 +573,7 @@ export class ProductsService {
             ? v.isPublished
             : v.published !== undefined
             ? v.published
-            : true;
+            : false; // Default to false (Archived)
 
         await db.insert(productVariants).values({
           productId: product.id,
@@ -602,7 +602,7 @@ export class ProductsService {
           ? data.isPublished
           : data.published !== undefined
           ? data.published
-          : true;
+          : false; // Default to false (Archived)
 
       await db.insert(productVariants).values({
         productId: product.id,
@@ -878,7 +878,7 @@ export class ProductsService {
         ? data.isPublished
         : data.published !== undefined
         ? data.published
-        : true;
+        : false; // Default to false (Archived)
 
     const sku =
       data.sku ||
@@ -982,13 +982,30 @@ export class ProductsService {
   }
 
   /**
-   * Deletes a variant
+   * Deletes a variant and purges its images from Cloudflare R2
    */
   static async deleteVariant(variantId: string) {
+    // Find the variant first to check its images
+    const existing = await db.query.productVariants.findFirst({
+      where: eq(productVariants.id, variantId),
+    });
+
     const [deleted] = await db
       .delete(productVariants)
       .where(eq(productVariants.id, variantId))
       .returning();
+
+    if (deleted && existing?.images && Array.isArray(existing.images)) {
+      for (const imgUrl of existing.images) {
+        if (typeof imgUrl === 'string' && imgUrl.startsWith('http')) {
+          try {
+            await R2Service.deleteFile(imgUrl);
+          } catch (err) {
+            console.warn(`Could not delete variant image ${imgUrl} from R2:`, err);
+          }
+        }
+      }
+    }
 
     return deleted || null;
   }

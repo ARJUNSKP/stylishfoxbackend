@@ -17,6 +17,7 @@ import { uploadsRoutes } from "./modules/uploads/uploads.routes.js";
 import { colorsRoutes } from "./modules/colors/colors.routes.js";
 import { sizesRoutes } from "./modules/sizes/sizes.routes.js";
 import { carouselsRoutes } from "./modules/carousels/carousels.routes.js";
+import { settingsRoutes } from "./modules/settings/settings.routes.js";
 
 export const app = new Hono();
 
@@ -60,6 +61,7 @@ api.route("/payments", paymentsRoutes);
 api.route("/users", usersRoutes);
 api.route("/uploads", uploadsRoutes);
 api.route("/carousels", carouselsRoutes);
+api.route("/settings", settingsRoutes);
 
 app.route("/api/v1", api);
 

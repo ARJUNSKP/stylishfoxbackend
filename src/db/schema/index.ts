@@ -7,3 +7,4 @@ export * from "./colors";
 export * from "./sizes";
 export * from "./product_variants";
 export * from "./carousels";
+export * from "./settings";
