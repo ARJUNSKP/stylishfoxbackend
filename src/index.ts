@@ -13,9 +13,13 @@ console.log(`
 `);
 
 // Pre-warm database connection pool in background
-warmUpDatabase().then(() => {
-  console.log("⚡ Database connection pool pre-warmed and ready");
-});
+warmUpDatabase()
+  .then(() => {
+    console.log("⚡ Database connection pool pre-warmed and ready");
+  })
+  .catch((err) => {
+    console.error("❌ Failed to pre-warm database:", err);
+  });
 
 serve({
   fetch: app.fetch,
