@@ -3,7 +3,6 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { settingsService } from "./settings.service.js";
 import { sendSuccess } from "../../utils/response.js";
-import { authenticate, requireAdmin } from "../../middleware/auth.middleware.js";
 
 export const settingsRoutes = new Hono();
 
@@ -20,11 +19,9 @@ settingsRoutes.get("/", async (c) => {
   return sendSuccess(c, settings);
 });
 
-// PUT /api/v1/settings - Admin only route to update store settings
+// PUT /api/v1/settings - Update store settings (no authentication token required)
 settingsRoutes.put(
   "/",
-  authenticate,
-  requireAdmin,
   zValidator("json", updateSettingsSchema),
   async (c) => {
     const data = c.req.valid("json");
