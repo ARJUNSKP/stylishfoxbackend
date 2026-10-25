@@ -56,13 +56,6 @@ app.get('/', (c) => {
 
 // API Routes (v1)
 const api = new Hono();
-api.get("/", (c) => {
-  return c.json({
-    success: true,
-    message: "Stylishfox API v1 is running",
-    version: "v1",
-  });
-});
 api.route("/auth", authRoutes);
 api.route("/products", productsRoutes);
 api.route("/categories", categoriesRoutes);
