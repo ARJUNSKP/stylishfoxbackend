@@ -2,3 +2,11 @@ name = "stylishfoxbackend"
 main = "src/worker.ts"
 compatibility_date = "2026-10-24"
 compatibility_flags = ["nodejs_compat"]
+"hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "4d826a433b0d4a0e90a13dbf3d65c6a3",
+      
+
+    }
+]
