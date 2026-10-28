@@ -19,7 +19,21 @@ import { sizesRoutes } from "./modules/sizes/sizes.routes.js";
 import { carouselsRoutes } from "./modules/carousels/carousels.routes.js";
 import { settingsRoutes } from "./modules/settings/settings.routes.js";
 
+import { dbContextStorage, createDatabaseConnection } from "./config/database.js";
+
 export const app = new Hono();
+
+// Request-scoped DB Context to prevent Cloudflare cross-request I/O errors
+app.use("*", async (c, next) => {
+  const hyperdriveBinding = (c.env as any)?.HYPERDRIVE?.connectionString;
+  const ctx = createDatabaseConnection(hyperdriveBinding);
+  try {
+    return await dbContextStorage.run(ctx, () => next());
+  } finally {
+    // End request-specific connection pool cleanly
+    ctx.client.end({ timeout: 2 }).catch(() => {});
+  }
+});
 
 // Global Middlewares
 app.use("*", honoLogger());
