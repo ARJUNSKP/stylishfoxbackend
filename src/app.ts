@@ -27,8 +27,21 @@ app.use(
   "*",
   cors({
     origin: (origin) => {
-      // Allow localhost dev or production client URL
-      if (!origin || origin.includes("localhost") || origin === env.CLIENT_URL) {
+      const allowedOrigins = [
+        "https://stylishfoxbackend.stylishfoxofficial.workers.dev",
+        "https://stylishfoxweb.pages.dev",
+        env.CLIENT_URL,
+      ];
+
+      // Allow localhost dev, specified origins, or any workers/pages dev origin
+      if (
+        !origin ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.includes("workers.dev") ||
+        origin.includes("pages.dev") ||
+        allowedOrigins.includes(origin)
+      ) {
         return origin || "*";
       }
       return env.CLIENT_URL;
