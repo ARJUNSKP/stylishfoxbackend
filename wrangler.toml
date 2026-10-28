@@ -5,3 +5,14 @@ compatibility_flags = ["nodejs_compat"]
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "4d826a433b0d4a0e90a13dbf3d65c6a3"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "stylishfox-images"
+
+[vars]
+R2_ACCOUNT_ID = "f06f6904431659b5d0b65af25ca48605"
+R2_ACCESS_KEY_ID = "0d8b3821aeccd2ffc2100fe1c2bf86c0"
+R2_SECRET_ACCESS_KEY = "564373cec775932ad023d776d02c9800bf91d3886998461a8eb40f3401976d7c"
+R2_BUCKET_NAME = "stylishfox-images"
+R2_PUBLIC_URL = "https://f06f6904431659b5d0b65af25ca48605.r2.cloudflarestorage.com"

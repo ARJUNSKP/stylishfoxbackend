@@ -12,6 +12,20 @@ uploadsRoutes.get("/file/:folder/:fileName", async (c) => {
   try {
     const { folder, fileName } = c.req.param();
     const key = `${folder}/${fileName}`;
+
+    // 1. Direct native Cloudflare Worker R2 binding (Fastest, zero S3 auth overhead)
+    const r2Binding = (c.env as any)?.R2_BUCKET;
+    if (r2Binding && typeof r2Binding.get === "function") {
+      const object = await r2Binding.get(key);
+      if (object) {
+        const contentType = object.httpMetadata?.contentType || "image/png";
+        c.header("Content-Type", contentType);
+        c.header("Cache-Control", "public, max-age=31536000, immutable");
+        return c.body(object.body);
+      }
+    }
+
+    // 2. S3 SDK fallback (Local dev / node-server)
     const file = await UploadsService.getFile(key);
     if (!file) {
       return sendError(c, "File not found", 404);
