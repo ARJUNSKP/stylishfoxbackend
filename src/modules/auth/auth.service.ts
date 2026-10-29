@@ -107,6 +107,48 @@ export class AuthService {
     };
   }
 
+  static async checkEmailExists(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const [user] = await db
+      .select({ id: users.id, email: users.email, name: users.name })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    return {
+      exists: !!user,
+      email: normalizedEmail,
+      name: user?.name || null,
+    };
+  }
+
+  static async resetPassword(email: string, newPassword: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error("Password must be at least 6 characters");
+    }
+
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!user) {
+      throw new Error("No account found with this email address");
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 8);
+
+    await db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
+
+    return { success: true, message: "Password updated successfully" };
+  }
+
   static generateToken(payload: UserPayload): string {
     return jwt.sign(payload, env.JWT_SECRET, {
       expiresIn: env.JWT_EXPIRES_IN,

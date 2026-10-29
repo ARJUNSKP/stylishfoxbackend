@@ -90,6 +90,23 @@ usersRoutes.post("/address", zValidator("json", addAddressSchema), async (c) => 
   }
 });
 
+// PUT /api/v1/users/address/:index (update existing address by index)
+usersRoutes.put("/address/:index", async (c) => {
+  try {
+    const user = c.get("user");
+    const index = parseInt(c.req.param("index"), 10);
+    if (isNaN(index)) return sendError(c, "Invalid address index", 400);
+
+    const rawData = await c.req.json().catch(() => ({}));
+    const addressData = rawData.address || rawData;
+
+    const updated = await UsersService.updateAddress(user.id, index, addressData);
+    return sendSuccess(c, updated, "Address updated successfully");
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to update address", 400);
+  }
+});
+
 // PATCH /api/v1/users/address/active (set active address by index)
 usersRoutes.patch("/address/active", zValidator("json", setActiveSchema), async (c) => {
   try {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { AuthService } from "./auth.service.js";
-import { registerSchema, loginSchema } from "./auth.validation.js";
+import { registerSchema, loginSchema, checkEmailSchema, resetPasswordSchema } from "./auth.validation.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 
@@ -26,6 +26,28 @@ authRoutes.post("/login", zValidator("json", loginSchema), async (c) => {
     return sendSuccess(c, result, "Logged in successfully", 200);
   } catch (error: any) {
     return sendError(c, error.message || "Login failed", 401);
+  }
+});
+
+// POST /api/v1/auth/check-email (check if email is registered)
+authRoutes.post("/check-email", zValidator("json", checkEmailSchema), async (c) => {
+  try {
+    const { email } = c.req.valid("json");
+    const result = await AuthService.checkEmailExists(email);
+    return sendSuccess(c, result, result.exists ? "Email is registered" : "Email is not registered", 200);
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to verify email", 400);
+  }
+});
+
+// POST /api/v1/auth/reset-password (update password after email verification)
+authRoutes.post("/reset-password", zValidator("json", resetPasswordSchema), async (c) => {
+  try {
+    const { email, newPassword } = c.req.valid("json");
+    const result = await AuthService.resetPassword(email, newPassword);
+    return sendSuccess(c, result, "Password updated successfully", 200);
+  } catch (error: any) {
+    return sendError(c, error.message || "Failed to reset password", 400);
   }
 });
 

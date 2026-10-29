@@ -94,6 +94,32 @@ export class UsersService {
     return await this.updateProfile(userId, { address: currentAddresses });
   }
 
+  static async updateAddress(userId: string, addressIndex: number, updatedAddress: any) {
+    const user = await this.getProfile(userId);
+    if (!user) throw new Error("User not found");
+
+    let currentAddresses: UserAddressItem[] = Array.isArray(user.address) ? [...user.address] : [];
+    if (addressIndex < 0 || addressIndex >= currentAddresses.length) {
+      throw new Error("Invalid address index");
+    }
+
+    const existingEntry = currentAddresses[addressIndex];
+    const isAlreadyActive = existingEntry?.ActiveAddress === true;
+
+    // Preserve ActiveAddress status unless explicitly specified
+    const updatedEntry: UserAddressItem = {
+      address: {
+        ...(typeof existingEntry?.address === "object" ? existingEntry.address : {}),
+        ...updatedAddress,
+      },
+      ActiveAddress: updatedAddress.ActiveAddress !== undefined ? updatedAddress.ActiveAddress : isAlreadyActive,
+    };
+
+    currentAddresses[addressIndex] = updatedEntry;
+
+    return await this.updateProfile(userId, { address: currentAddresses });
+  }
+
   static async setActiveAddress(userId: string, addressIndex: number) {
     const user = await this.getProfile(userId);
     if (!user) throw new Error("User not found");
