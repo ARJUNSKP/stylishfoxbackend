@@ -22,7 +22,12 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, "Refresh token is required"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CheckEmailInput = z.infer<typeof checkEmailSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;

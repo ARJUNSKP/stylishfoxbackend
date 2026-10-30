@@ -41,13 +41,18 @@ export class AuthService {
         throw new Error("User with this email already exists");
       }
 
-      const token = this.generateToken({
+      const tokens = this.generateTokens({
         id: newUser.id,
         email: newUser.email,
         role: newUser.role as "admin" | "customer",
       });
 
-      return { user: newUser, token };
+      return {
+        user: newUser,
+        token: tokens.accessToken,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
     } catch (error: any) {
       // PostgreSQL error 23505 = unique_violation
       if (error?.code === "23505" || error?.message?.includes("unique")) {
@@ -86,7 +91,7 @@ export class AuthService {
       throw new Error("Invalid email or password");
     }
 
-    const token = this.generateToken({
+    const tokens = this.generateTokens({
       id: user.id,
       email: user.email,
       role: user.role as "admin" | "customer",
@@ -103,7 +108,9 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
         address: user.address,
       },
-      token,
+      token: tokens.accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
   }
 
@@ -149,9 +156,72 @@ export class AuthService {
     return { success: true, message: "Password updated successfully" };
   }
 
-  static generateToken(payload: UserPayload): string {
-    return jwt.sign(payload, env.JWT_SECRET, {
-      expiresIn: env.JWT_EXPIRES_IN,
+  static generateTokens(payload: UserPayload): { accessToken: string; refreshToken: string } {
+    const accessToken = jwt.sign(payload, env.JWT_SECRET, {
+      expiresIn: env.JWT_EXPIRES_IN || "7d",
     } as jwt.SignOptions);
+
+    const refreshToken = jwt.sign(
+      { ...payload, tokenType: "refresh" },
+      env.JWT_SECRET,
+      { expiresIn: "30d" } as jwt.SignOptions
+    );
+
+    return { accessToken, refreshToken };
+  }
+
+  static generateToken(payload: UserPayload): string {
+    return this.generateTokens(payload).accessToken;
+  }
+
+  static async refreshAccessToken(refreshToken: string) {
+    if (!refreshToken) {
+      throw new Error("Refresh token is required");
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, env.JWT_SECRET);
+    } catch {
+      throw new Error("Invalid or expired refresh token");
+    }
+
+    if (!decoded || !decoded.id) {
+      throw new Error("Invalid refresh token payload");
+    }
+
+    // Verify user exists in database
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        role: users.role,
+        name: users.name,
+      })
+      .from(users)
+      .where(eq(users.id, decoded.id))
+      .limit(1);
+
+    if (!user) {
+      throw new Error("User no longer exists");
+    }
+
+    const tokens = this.generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role as "admin" | "customer",
+    });
+
+    return {
+      token: tokens.accessToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    };
   }
 }

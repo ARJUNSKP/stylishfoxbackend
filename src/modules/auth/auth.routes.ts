@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { AuthService } from "./auth.service.js";
-import { registerSchema, loginSchema, checkEmailSchema, resetPasswordSchema } from "./auth.validation.js";
+import {
+  registerSchema,
+  loginSchema,
+  checkEmailSchema,
+  resetPasswordSchema,
+  refreshTokenSchema,
+} from "./auth.validation.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 
@@ -26,6 +32,17 @@ authRoutes.post("/login", zValidator("json", loginSchema), async (c) => {
     return sendSuccess(c, result, "Logged in successfully", 200);
   } catch (error: any) {
     return sendError(c, error.message || "Login failed", 401);
+  }
+});
+
+// POST /api/v1/auth/refresh (exchange refresh token for fresh access token)
+authRoutes.post("/refresh", zValidator("json", refreshTokenSchema), async (c) => {
+  try {
+    const { refreshToken } = c.req.valid("json");
+    const result = await AuthService.refreshAccessToken(refreshToken);
+    return sendSuccess(c, result, "Access token refreshed successfully", 200);
+  } catch (error: any) {
+    return sendError(c, error.message || "Invalid or expired refresh token", 401);
   }
 });
 
