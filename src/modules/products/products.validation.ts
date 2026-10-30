@@ -17,6 +17,7 @@ export const createProductVariantInputSchema = z.object({
   colorId: z.string().uuid().optional(),
   sizeId: z.string().uuid().optional(),
   images: z.array(z.string()).optional().default([]),
+  displayType: z.coerce.number().int().min(0).max(2).optional().default(0),
   isPublished: z.boolean().optional().default(false),
   published: z.boolean().optional(),
 });
@@ -29,6 +30,7 @@ export const updateProductVariantSchema = z.object({
   colorId: z.string().uuid().optional().nullable(),
   sizeId: z.string().uuid().optional().nullable(),
   images: z.array(z.string()).optional(),
+  displayType: z.coerce.number().int().min(0).max(2).optional(),
   isPublished: z.boolean().optional(),
   published: z.boolean().optional(),
 });
@@ -43,6 +45,7 @@ export const createProductSchema = z.object({
   features: z.union([z.array(z.string()), z.string()]).optional().default([]),
   images: z.array(z.string()).optional().default([]),
   categoryId: z.string().uuid().optional(),
+  displayType: z.coerce.number().int().min(0).max(2).optional().default(0),
   // Optional variant details on initial product creation
   price: z.union([z.string(), z.number()]).optional(),
   sellingPrice: z.union([z.string(), z.number()]).optional(),

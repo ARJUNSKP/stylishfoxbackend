@@ -83,7 +83,7 @@ export class ProductsService {
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(products.createdAt))
+      .orderBy(desc(products.displayType), desc(products.createdAt))
       .limit(limit);
 
     if (productList.length === 0) return [];
@@ -102,6 +102,7 @@ export class ProductsService {
         price: productVariants.price,
         sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
+        displayType: productVariants.displayType,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
         color: {
@@ -150,9 +151,15 @@ export class ProductsService {
           ? parseFloat(primaryVariant.price)
           : 0;
       const images = product.images?.length > 0 ? product.images : (primaryVariant?.images || []);
+      const variantDisplayTypes = pVariants
+        .map((v) => (v.displayType != null ? Number(v.displayType) : 0));
+      const effectiveDisplayType = variantDisplayTypes.length > 0
+        ? Math.max(...variantDisplayTypes)
+        : (product.displayType != null ? Number(product.displayType) : 0);
 
       result.push({
         ...product,
+        displayType: effectiveDisplayType,
         images,
         price,
         categoryId: categoryObj,
@@ -160,6 +167,9 @@ export class ProductsService {
         variants: pVariants,
       });
     }
+
+    // Sort result descending by displayType (2 Cleared first, 1 New second, 0 Normal third)
+    result.sort((a, b) => (b.displayType ?? 0) - (a.displayType ?? 0));
 
     return result;
   }
@@ -213,6 +223,7 @@ export class ProductsService {
         price: productVariants.price,
         sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
+        displayType: productVariants.displayType,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
         color: {
@@ -277,6 +288,7 @@ export class ProductsService {
         price: productVariants.price,
         sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
+        displayType: productVariants.displayType,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
         color: {
@@ -383,6 +395,7 @@ export class ProductsService {
         price: productVariants.price,
         sellingPrice: productVariants.sellingPrice,
         stock: productVariants.stock,
+        displayType: productVariants.displayType,
         images: productVariants.images,
         isPublished: productVariants.isPublished,
         color: {
@@ -534,6 +547,7 @@ export class ProductsService {
         features,
         images: uploadedUrls,
         categoryId: data.categoryId,
+        displayType: data.displayType ?? 0,
       })
       .returning();
 
@@ -584,6 +598,7 @@ export class ProductsService {
           colorId: v.colorId,
           sizeId: v.sizeId,
           images: variantImages,
+          displayType: v.displayType != null ? Number(v.displayType) : (data.displayType != null ? Number(data.displayType) : 0),
           isPublished,
         });
       }
@@ -613,6 +628,7 @@ export class ProductsService {
         colorId: data.colorId,
         sizeId: data.sizeId,
         images: uploadedUrls,
+        displayType: data.displayType != null ? Number(data.displayType) : 0,
         isPublished,
       });
     }
@@ -693,6 +709,10 @@ export class ProductsService {
             : typeof existing.categoryId === "object" && existing.categoryId !== null
             ? existing.categoryId.categoryId
             : existing.categoryId,
+        displayType:
+          data.displayType !== undefined
+            ? data.displayType
+            : (existing as any).displayType ?? 0,
         updatedAt: new Date(),
       })
       .where(eq(products.id, id));
@@ -895,6 +915,7 @@ export class ProductsService {
         colorId: data.colorId,
         sizeId: data.sizeId,
         images: finalImages.length > 0 ? finalImages : product.images || [],
+        displayType: data.displayType != null ? Number(data.displayType) : 0,
         isPublished,
       })
       .returning();
@@ -903,7 +924,7 @@ export class ProductsService {
   }
 
   /**
-   * Updates a product variant (including isPublished boolean status)
+   * Updates a product variant (including isPublished boolean status and displayType)
    */
   static async updateVariant(
     variantId: string,
@@ -939,6 +960,7 @@ export class ProductsService {
     if (data.stock !== undefined) updateFields.stock = data.stock;
     if (data.colorId !== undefined) updateFields.colorId = data.colorId;
     if (data.sizeId !== undefined) updateFields.sizeId = data.sizeId;
+    if (data.displayType !== undefined) updateFields.displayType = Number(data.displayType);
 
     if (data.images !== undefined || uploadedUrls.length > 0) {
       const existing = (data.images || []).filter(

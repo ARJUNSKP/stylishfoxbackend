@@ -12,6 +12,7 @@ export const products = pgTable("products", {
   features: jsonb("features").$type<string[]>().default([]).notNull(),
   images: jsonb("images").$type<string[]>().default([]).notNull(),
   categoryId: varchar("category_id", { length: 36 }).references(() => categories.id, { onDelete: "set null" }),
+  displayType: integer("display_type").default(0).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -7,6 +7,7 @@ export interface SettingsData {
   freeShippingThreshold: number;
   shippingFee?: number;
   supportEmail?: string;
+  offerText?: string;
   [key: string]: any;
 }
 
@@ -14,6 +15,7 @@ const DEFAULT_SETTINGS: SettingsData = {
   whatsappNumber: "918086388058",
   freeShippingThreshold: 2000,
   shippingFee: 149,
+  offerText: "10% OFF ON ORDERS ₹4,499+ | USE CODE: PTGR10",
 };
 
 export class SettingsService {
@@ -28,6 +30,7 @@ export class SettingsService {
       return {
         ...DEFAULT_SETTINGS,
         ...existing[0].data,
+        offerText: existing[0].data.offerText !== undefined ? existing[0].data.offerText : DEFAULT_SETTINGS.offerText,
       };
     }
 

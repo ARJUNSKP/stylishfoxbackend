@@ -11,6 +11,7 @@ const updateSettingsSchema = z.object({
   freeShippingThreshold: z.coerce.number().min(0, "Free shipping threshold must be 0 or greater"),
   shippingFee: z.coerce.number().min(0).optional(),
   supportEmail: z.string().email().optional().or(z.literal("")),
+  offerText: z.string().optional(),
 });
 
 // GET /api/v1/settings - Public route so Header, Cart, etc. can fetch settings

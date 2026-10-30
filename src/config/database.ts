@@ -74,6 +74,7 @@ export async function warmUpDatabase() {
     const { client } = getCurrentDbContext();
     await client`SELECT 1`;
     await client`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(10, 2);`;
+    await client`ALTER TABLE products ADD COLUMN IF NOT EXISTS display_type INTEGER NOT NULL DEFAULT 0;`;
     await client`
       CREATE TABLE IF NOT EXISTS store_settings (
         id VARCHAR(36) PRIMARY KEY,

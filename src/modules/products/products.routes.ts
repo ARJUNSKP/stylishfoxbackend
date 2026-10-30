@@ -194,6 +194,9 @@ productsRoutes.post("/", authenticate, requireAdmin, async (c) => {
         sku: (formData.get("sku") as string) || undefined,
         colorId: (formData.get("colorId") as string) || undefined,
         sizeId: (formData.get("sizeId") as string) || undefined,
+        displayType: formData.get("displayType") !== null
+          ? parseInt(formData.get("displayType") as string, 10)
+          : undefined,
         variants,
       };
     } else {
@@ -305,6 +308,9 @@ productsRoutes.put("/:id", authenticate, requireAdmin, async (c) => {
         reviewCount: formData.get("reviewCount")
           ? parseInt(formData.get("reviewCount") as string, 10)
           : undefined,
+        displayType: formData.get("displayType") !== null
+          ? parseInt(formData.get("displayType") as string, 10)
+          : undefined,
         features,
       };
     } else {
@@ -360,6 +366,9 @@ productsRoutes.post("/:id/variants", authenticate, requireAdmin, async (c) => {
         sellingPrice: (formData.get("sellingPrice") as string) || undefined,
         stock: formData.get("stock") ? parseInt(formData.get("stock") as string, 10) : 0,
         sku: (formData.get("sku") as string) || undefined,
+        displayType: formData.get("displayType") !== null
+          ? parseInt(formData.get("displayType") as string, 10)
+          : undefined,
         isPublished: formData.get("isPublished") !== "false",
       };
       const rawExistingEntries = [
@@ -425,6 +434,9 @@ productsRoutes.put("/variants/:variantId", authenticate, requireAdmin, async (c)
         sellingPrice: (formData.get("sellingPrice") as string) || undefined,
         stock: formData.get("stock") ? parseInt(formData.get("stock") as string, 10) : undefined,
         sku: (formData.get("sku") as string) || undefined,
+        displayType: formData.get("displayType") !== null
+          ? parseInt(formData.get("displayType") as string, 10)
+          : undefined,
         isPublished:
           formData.get("isPublished") !== undefined
             ? formData.get("isPublished") === "true"
