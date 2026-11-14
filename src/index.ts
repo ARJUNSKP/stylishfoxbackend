@@ -12,13 +12,13 @@ console.log(`
 🔗 Health Check: http://localhost:${port}/health
 `);
 
-// Pre-warm database connection pool in background
+// Pre-warm database connection pool and ensure all tables exist
 warmUpDatabase()
   .then(() => {
-    console.log("⚡ Database connection pool pre-warmed and ready");
+    console.log("⚡ Database connection pool verified and all tables ready");
   })
   .catch((err) => {
-    console.error("❌ Failed to pre-warm database:", err);
+    console.error("❌ Failed to verify database tables:", err);
   });
 
 serve({
