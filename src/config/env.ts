@@ -14,7 +14,7 @@ const envSchema = z.object({
   DATABASE_URL: z
     .string()
     .default(
-      "postgresql://stylishfox_hyperdrive:npg_n9dJM1tlokRA@ep-lucky-scene-b47dnrev.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+      "postgresql://stylishfox_hyperdrive:npg_n9dJM1tlokRA@ep-sparkling-water-b4owxkx4.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
     ),
   JWT_SECRET: z.string().default("super_secret_stylefox_jwt_token_change_in_production"),
   JWT_EXPIRES_IN: z.string().default("7d"),
